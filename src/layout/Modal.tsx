@@ -13,6 +13,10 @@ const Modal = ({
   setAlert, // Recibe la función para actualizar la alerta del Dashboard
   modalTitle, // Propiedad para el título del modal
   modalHeaderColor, // Propiedad para el color del encabezado del modal
+  // ¡NUEVAS PROPS PARA LA LÓGICA DEL PIN!
+  pinRequired, // Booleano: indica si se debe mostrar el campo del PIN
+  pinInput, // String: el valor actual del input del PIN
+  handlePinInputChange, // Función: para manejar cambios en el input del PIN
 }) => {
   // Si el modal no debe estar abierto, no renderiza nada
   if (!isModalOpen) {
@@ -75,26 +79,29 @@ const Modal = ({
                     required
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-l-xl focus:border-[#0069B6] transition-all"
                     placeholder="V-12345678"
+                    disabled={!!selectedAyuda} // Deshabilita la cédula al editar
                   />
-                  <button
-                    type="button"
-                    onClick={handleSearchBeneficiary}
-                    className="bg-[#0095D4] text-white p-3 rounded-r-xl hover:bg-[#0069B6] transition-colors"
-                  >
-                    <svg
-                      className="w-6 h-6 text-white"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {!selectedAyuda && ( // Solo muestra el botón buscar si es una nueva ayuda
+                    <button
+                      type="button"
+                      onClick={handleSearchBeneficiary}
+                      className="bg-[#0095D4] text-white p-3 rounded-r-xl hover:bg-[#0069B6] transition-colors"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                  </button>
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                        />
+                      </svg>
+                    </button>
+                  )}
                 </div>
               </div>
               <div>
@@ -448,6 +455,30 @@ const Modal = ({
                 placeholder="Describa detalladamente la situación, necesidades y motivos de la solicitud..."
               ></textarea>
             </div>
+            {/* Campo del PIN de Seguridad - Solo se muestra si pinRequired es true */}
+            {pinRequired && (
+              <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl shadow-inner">
+                <label htmlFor="pin" className="block text-base font-bold text-yellow-800 mb-2">
+                  ⚠️ PIN de Seguridad Requerido ⚠️
+                </label>
+                <input
+                  type="password" // Usa "password" para ocultar los dígitos
+                  id="pin"
+                  name="pin"
+                  value={pinInput}
+                  onChange={handlePinInputChange}
+                  className="mt-1 block w-full px-4 py-3 border border-yellow-400 rounded-xl shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-base"
+                  maxLength="6"
+                  pattern="\d{6}" // Asegura que solo se puedan ingresar 6 dígitos numéricos
+                  title="Debe ser un PIN de 6 dígitos numéricos"
+                  required // Hace que el campo sea obligatorio cuando se muestra
+                  placeholder="Ingrese el PIN de 6 dígitos aquí"
+                />
+                <p className="text-sm text-yellow-700 mt-2">
+                  Este beneficiario ha solicitado ayudas recientemente. Ingrese el PIN para continuar.
+                </p>
+              </div>
+            )}
             {selectedAyuda && (
               <div className="bg-gray-50 p-4 rounded-xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

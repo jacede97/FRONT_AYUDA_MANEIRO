@@ -5,6 +5,18 @@ import Modal from "../../layout/Modal";
 import Alert from "../Alert";
 import ConfirmDeleteModal from "../../layout/ConfirmDeleteModal";
 
+// Define la URL base de tu API usando la variable de entorno para Render
+// o la URL de Render para pruebas locales.
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://maneiro-api.onrender.com/api';
+
+// Crea una instancia de Axios con la URL base
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
 const Dashboard = () => {
   const [alert, setAlert] = useState({ show: false, message: "", type: "" });
   const [ayudas, setAyudas] = useState([]);
@@ -21,6 +33,10 @@ const Dashboard = () => {
     title: "",
     headerColor: "",
   });
+
+  // NUEVOS ESTADOS PARA LA LÓGICA DEL PIN
+  const [pinRequired, setPinRequired] = useState(false); // Indica si se necesita un PIN
+  const [pinInput, setPinInput] = useState(''); // Valor del PIN ingresado
 
   const [formData, setFormData] = useState({
     cedula: "",
@@ -84,7 +100,8 @@ const Dashboard = () => {
   const fetchAyudas = useCallback(async () => {
     console.log("INTENTANDO: Cargar ayudas desde la API...");
     try {
-      const response = await axios.get("https://maneiro-api.onrender.com/api/ayudas/");
+      // Usar la instancia 'api' para la URL relativa
+      const response = await api.get("/ayudas/");
       console.log(
         "ÉXITO: Respuesta de la API (datos crudos de Ayudas):",
         response.data
@@ -95,6 +112,8 @@ const Dashboard = () => {
           ...ayuda,
           id: ayuda.id,
           fecha: new Date(ayuda.fecha).toISOString().split("T")[0],
+          // Asegúrate de mapear fecha_registro aquí
+          fecha_registro: ayuda.fecha_registro, // Añadido para la lógica del PIN
           beneficiario: ayuda.beneficiario || "",
           nacionalidad:
             ayuda.cedula &&
@@ -148,9 +167,7 @@ const Dashboard = () => {
 
     try {
       console.log(`Buscando beneficiario para cédula: ${cedula}`);
-      const response = await axios.get(
-        `https://maneiro-api.onrender.com/registro_electoral/buscar/?cedula=${cedula}`
-      );
+      const response = await api.get(`/registro_electoral/buscar/?cedula=${cedula}`);
       const data = response.data;
       console.log("Respuesta completa de la API de registro electoral:", data);
       console.log(
@@ -198,59 +215,38 @@ const Dashboard = () => {
   };
 
   const openModal = (ayuda = null) => {
-    if (ayuda) {
-      setSelectedAyuda(ayuda);
-      setFormData({
-        cedula: ayuda.cedula,
-        beneficiario: ayuda.beneficiario || "",
-        nacionalidad: ayuda.nacionalidad,
-        sexo: ayuda.sexo,
-        fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
-        parroquia: ayuda.parroquia,
-        municipio: ayuda.municipio,
-        sector: ayuda.sector,
-        telefono: ayuda.telefono,
-        direccion: ayuda.direccion,
-        institucion: ayuda.institucion,
-        estado: ayuda.estado,
-        tipo: ayuda.tipo,
-        observacion: ayuda.observacion || "",
-        responsableInstitucion: ayuda.responsableInstitucion || "",
-      });
-      setModalProps({
-        title: "Editar Ayuda",
-        headerColor: "bg-[#FFCB00]", // Amarillo vibrante para editar
-      });
-    } else {
-      setSelectedAyuda(null);
-      setFormData({
-        cedula: "",
-        beneficiario: "",
-        nacionalidad: "",
-        sexo: "",
-        fechaNacimiento: "",
-        parroquia: "",
-        municipio: "",
-        sector: "",
-        telefono: "",
-        direccion: "",
-        institucion: "",
-        estado: "REGISTRADO / RECIBIDO",
-        tipo: "",
-        observacion: "",
-        responsableInstitucion: "",
-      });
-      setModalProps({
-        title: "Nueva Ayuda",
-        headerColor: "bg-[#0095D4]", // Azul vibrante para nuevo
-      });
-    }
+    setSelectedAyuda(ayuda);
+    setFormData({
+      cedula: ayuda ? ayuda.cedula : "",
+      beneficiario: ayuda ? ayuda.beneficiario || "" : "",
+      nacionalidad: ayuda ? ayuda.nacionalidad : "",
+      sexo: ayuda ? ayuda.sexo : "",
+      fechaNacimiento: ayuda ? formatToYYYYMMDD(ayuda.fechaNacimiento) : "",
+      parroquia: ayuda ? ayuda.parroquia : "",
+      municipio: ayuda ? ayuda.municipio : "",
+      sector: ayuda ? ayuda.sector : "",
+      telefono: ayuda ? ayuda.telefono : "",
+      direccion: ayuda ? ayuda.direccion : "",
+      institucion: ayuda ? ayuda.institucion : "",
+      estado: ayuda ? ayuda.estado : "REGISTRADO / RECIBIDO",
+      tipo: ayuda ? ayuda.tipo : "",
+      observacion: ayuda ? ayuda.observacion || "" : "",
+      responsableInstitucion: ayuda ? ayuda.responsableInstitucion || "" : "",
+    });
+    setModalProps({
+      title: ayuda ? "Editar Ayuda" : "Nueva Ayuda",
+      headerColor: ayuda ? "bg-[#FFCB00]" : "bg-[#0095D4]",
+    });
+    setPinRequired(false); // Resetea el PIN cuando se abre el modal
+    setPinInput(''); // Limpia el input del PIN
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
     setAlert({ show: false, message: "", type: "" });
+    setPinRequired(false); // Resetea el estado del PIN al cerrar el modal
+    setPinInput(''); // Limpia el input del PIN
   };
 
   const handleInputChange = (e) => {
@@ -258,9 +254,16 @@ const Dashboard = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // NUEVA FUNCIÓN PARA MANEJAR EL CAMBIO DEL INPUT DEL PIN
+  const handlePinInputChange = (e) => {
+    setPinInput(e.target.value);
+  };
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validaciones de campos requeridos
     if (
       !formData.cedula ||
       !formData.beneficiario ||
@@ -279,6 +282,56 @@ const Dashboard = () => {
       return;
     }
 
+    // LÓGICA DE VALIDACIÓN DE AYUDAS FRECUENTES Y PIN DE SEGURIDAD
+    if (!selectedAyuda) { // Solo aplica para nuevas ayudas
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+
+      const recentAyudasCount = ayudas.filter(ayuda => {
+        // Filtra ayudas por la misma cédula y que estén dentro de los últimos 3 meses
+        if (ayuda.cedula === formData.cedula && ayuda.fecha_registro) {
+          try {
+            const registroDate = new Date(ayuda.fecha_registro);
+            return registroDate >= threeMonthsAgo;
+          } catch (e) {
+            console.error("Error al parsear fecha_registro para validación de PIN:", ayuda.fecha_registro, e);
+            return false;
+          }
+        }
+        return false;
+      }).length;
+
+      console.log(`Ayudas recientes para ${formData.cedula} en los últimos 3 meses: ${recentAyudasCount}`);
+
+      // Si tiene 2 o más solicitudes en los últimos 3 meses, requiere PIN
+      if (recentAyudasCount >= 2) {
+        if (!pinRequired) {
+          setPinRequired(true);
+          setAlert({
+            show: true,
+            message: "¡Alerta! Este beneficiario tiene más de 2 solicitudes en los últimos 3 meses. Ingrese el PIN de seguridad (6 dígitos numéricos) para registrar la ayuda.",
+            type: "warning",
+          });
+          return; // Detiene la ejecución para esperar el PIN
+        } else {
+          // Si el PIN es requerido, validarlo
+          if (!pinInput || !/^\d{6}$/.test(pinInput)) { // PIN debe ser 6 dígitos numéricos
+            setAlert({
+              show: true,
+              message: "PIN de seguridad inválido. Debe ser de 6 dígitos numéricos.",
+              type: "error",
+            });
+            return; // Detiene la ejecución si el PIN es inválido
+          }
+          // Si el PIN es válido, se continúa con el proceso de guardado
+          setAlert({ show: false, message: "", type: "" }); // Limpia alerta
+          setPinRequired(false); // Resetea estado del PIN
+          setPinInput(''); // Limpia input del PIN
+        }
+      }
+    }
+    // FIN LÓGICA DE VALIDACIÓN DE AYUDAS FRECUENTES Y PIN DE SEGURIDAD
+
     let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
     if (!selectedAyuda) {
       const maxId = ayudas.reduce((max, ayuda) => {
@@ -295,7 +348,7 @@ const Dashboard = () => {
       beneficiario: formData.beneficiario,
       nacionalidad: formData.nacionalidad === "V" ? "V" : "E",
       sexo: formData.sexo === "Masculino" ? "M" : "F",
-      fecha: new Date().toISOString().split("T")[0],
+      fecha: new Date().toISOString().split("T")[0], // Fecha actual de registro
       fechaNacimiento: formData.fechaNacimiento,
       parroquia: formData.parroquia,
       municipio: formData.municipio,
@@ -313,17 +366,14 @@ const Dashboard = () => {
 
     try {
       if (selectedAyuda) {
-        await axios.put(
-          `https://maneiro-api.onrender.com//api/ayudas/${selectedAyuda.id}/`,
-          apiData
-        );
+        await api.put(`/ayudas/${selectedAyuda.id}/`, apiData);
         setAlert({
           show: true,
           message: "Ayuda actualizada exitosamente en la base de datos.",
           type: "success",
         });
       } else {
-        await axios.post("https://maneiro-api.onrender.com//api/ayudas/", apiData);
+        await api.post("/ayudas/", apiData);
         setAlert({
           show: true,
           message: "Nueva ayuda registrada exitosamente en la base de datos.",
@@ -359,9 +409,7 @@ const Dashboard = () => {
     if (itemToDelete) {
       console.log("Intentando eliminar ID:", itemToDelete.id);
       try {
-        await axios.delete(
-          `https://maneiro-api.onrender.com/api/ayudas/${itemToDelete.id}/`
-        );
+        await api.delete(`/ayudas/${itemToDelete.id}/`);
         setAlert({
           show: true,
           message: "Ayuda eliminada exitosamente de la base de datos.",
