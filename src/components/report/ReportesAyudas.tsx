@@ -445,7 +445,7 @@ const ReportesAyudas: React.FC = () => {
 
       <h1 className="text-3xl font-extrabold mb-8 text-center rounded-xl bg-gradient-to-r from-[#f7f7f7] to-[#0095d4] text-white p-6 shadow-xl flex items-center justify-center">
         <img
-          src="../../../public/LOGO.PNG"
+          src="/LOGO.png"
           alt="Logo de la Aplicación"
           className="h-20 w-22 mr-4"
           onError={(e) => {

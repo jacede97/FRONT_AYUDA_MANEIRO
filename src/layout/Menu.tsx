@@ -50,7 +50,7 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
           {/* Contenido del menú cuando está abierto */}
           <div className="flex items-center justify-center mb-6 py-2">
             <img
-              src="../../../public/LOGO.PNG"
+              src="/LOGO.png"
               alt="Logo de la Aplicación"
               className="h-12 w-auto mx-auto"
               onError={(e) => {

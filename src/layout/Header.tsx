@@ -30,7 +30,7 @@ const Header = ({ toggleMenu }) => {
 
             {/* Logo de la aplicación (IMG) reemplazando el SVG y el div circular */}
             <img
-              src="../../../public/LOGO.PNG"
+              src="/LOGO.png"
               alt="Logo de la Aplicación"
               className="h-10 w-auto mr-3 block" // Tamaño y margen ajustados
               onError={(e) => {

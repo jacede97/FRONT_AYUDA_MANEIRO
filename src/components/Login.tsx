@@ -21,7 +21,7 @@ const Login = ({ onLoginSuccess }) => {
         <div className="text-center mb-6">
           {/* Logo de la aplicación, ahora como imagen normal en la parte superior central */}
           <img
-            src="../../../public/LOGO.PNG"
+            src="/LOGO.png"
             alt="Logo de la Aplicación"
             className="h-20 w-auto mx-auto block mb-3" // Tamaño y centrado como imagen, y margen inferior
             onError={(e) => {
