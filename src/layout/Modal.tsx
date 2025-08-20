@@ -13,10 +13,10 @@ const Modal = ({
   setAlert, // Recibe la función para actualizar la alerta del Dashboard
   modalTitle, // Propiedad para el título del modal
   modalHeaderColor, // Propiedad para el color del encabezado del modal
-  // ¡NUEVAS PROPS PARA LA LÓGICA DEL PIN!
+  // Props para el PIN
   pinRequired, // Booleano: indica si se debe mostrar el campo del PIN
-  pinInput, // String: el valor actual del input del PIN
-  handlePinInputChange, // Función: para manejar cambios en el input del PIN
+  pinInput, // String: valor del PIN ingresado
+  handlePinInputChange, // Función: maneja el cambio en el input del PIN
 }) => {
   // Si el modal no debe estar abierto, no renderiza nada
   if (!isModalOpen) {
@@ -30,13 +30,11 @@ const Modal = ({
         <div
           className={`p-4 rounded-t-2xl text-white flex justify-between items-center ${modalHeaderColor}`}
         >
-          {" "}
-          {/* Aplica el color de fondo dinámicamente aquí */}
-          <h2 className="text-xl font-bold">{modalTitle}</h2>{" "}
-          {/* Muestra el título dinámicamente aquí */}
+          <h2 className="text-xl font-bold">{modalTitle}</h2>
           <button
             onClick={closeModal}
             className="text-white hover:text-gray-100 transition-colors"
+            aria-label="Cerrar modal"
           >
             <svg
               className="w-6 h-6"
@@ -54,9 +52,9 @@ const Modal = ({
           </button>
         </div>
 
-        {/* Contenido del Modal (Aquí iría tu formulario) */}
+        {/* Contenido del Modal */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-          {/* Usa el componente Alert aquí */}
+          {/* Alerta */}
           {alert.show && (
             <Alert
               message={alert.message}
@@ -64,8 +62,10 @@ const Modal = ({
               setAlert={setAlert}
             />
           )}
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Cédula */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Cédula
@@ -79,16 +79,17 @@ const Modal = ({
                     required
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-l-xl focus:border-[#0069B6] transition-all"
                     placeholder="V-12345678"
-                    disabled={!!selectedAyuda} // Deshabilita la cédula al editar
+                    disabled={!!selectedAyuda}
                   />
-                  {!selectedAyuda && ( // Solo muestra el botón buscar si es una nueva ayuda
+                  {!selectedAyuda && (
                     <button
                       type="button"
                       onClick={handleSearchBeneficiary}
                       className="bg-[#0095D4] text-white p-3 rounded-r-xl hover:bg-[#0069B6] transition-colors"
+                      title="Buscar beneficiario en el registro electoral"
                     >
                       <svg
-                        className="w-6 h-6 text-white"
+                        className="w-6 h-6"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -104,6 +105,8 @@ const Modal = ({
                   )}
                 </div>
               </div>
+
+              {/* Beneficiario */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Beneficiario
@@ -121,13 +124,13 @@ const Modal = ({
                       : ""
                   }
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.beneficiario
-                      ? "bg-gray-100 cursor-not-allowed"
-                      : ""
+                    formData.beneficiario ? "bg-gray-100 cursor-not-allowed" : ""
                   }`}
                   placeholder="Nombre completo"
                 />
               </div>
+
+              {/* Nacionalidad */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Nacionalidad
@@ -144,9 +147,7 @@ const Modal = ({
                       : ""
                   }
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.nacionalidad
-                      ? "bg-gray-100 cursor-not-allowed"
-                      : ""
+                    formData.nacionalidad ? "bg-gray-100 cursor-not-allowed" : ""
                   }`}
                 >
                   <option value="">Seleccione una nacionalidad</option>
@@ -154,6 +155,8 @@ const Modal = ({
                   <option value="E">Extranjero(a)</option>
                 </select>
               </div>
+
+              {/* Sexo */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Sexo
@@ -178,6 +181,8 @@ const Modal = ({
                   <option value="Femenino">Femenino</option>
                 </select>
               </div>
+
+              {/* Fecha de Nacimiento */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Fecha de Nacimiento
@@ -201,6 +206,8 @@ const Modal = ({
                   }`}
                 />
               </div>
+
+              {/* Municipio */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Municipio
@@ -240,6 +247,8 @@ const Modal = ({
                   </option>
                 </select>
               </div>
+
+              {/* Parroquia */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Parroquia
@@ -298,6 +307,8 @@ const Modal = ({
                   </option>
                 </select>
               </div>
+
+              {/* Sector */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Sector
@@ -310,16 +321,76 @@ const Modal = ({
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
                 >
                   <option value="">Seleccione un sector</option>
-                  <option value="Centro">Centro</option>
-                  <option value="Playa">Playa</option>
-                  <option value="Montaña">Montaña</option>
-                  <option value="Barrio Nuevo">Barrio Nuevo</option>
-                  <option value="Costa Azul">Costa Azul</option>
-                  <option value="El Valle">El Valle</option>
-                  <option value="San José">San José</option>
-                  <option value="La Candelaria">La Candelaria</option>
+                  {[
+                    "3 DE MAYO",
+                    "AGUA DE VACA",
+                    "APOSTADERO",
+                    "BELEN",
+                    "BRISAS DEL MAR",
+                    "BUEN VIAJE",
+                    "CAMPEARE",
+                    "CASTO LOPEZ",
+                    "CLL LAS FLORES",
+                    "CURIEPE",
+                    "EL CEMENTERIO",
+                    "EL CERRO",
+                    "EL HATO",
+                    "EL PLATANAL",
+                    "EL POCITO",
+                    "EL POTRERO",
+                    "EL REALENGO",
+                    "EL TAMARINDO",
+                    "EL TROCADERO",
+                    "EL VIGIA",
+                    "FRATERNIDAD",
+                    "JORGE COLL",
+                    "JOVITO LOPEZ",
+                    "JOVITO VILLALBA",
+                    "JULIO LUIS BEAUFOND",
+                    "LA ANTENA",
+                    "LA CARANTA",
+                    "LA CIUDADELA DEL MAR",
+                    "LA FUNDACION",
+                    "LA GUAMACHERA",
+                    "LA OTRA SABANA",
+                    "LA PLAYA",
+                    "LA PLAZA",
+                    "LA SALINA",
+                    "LAS ACACIAS",
+                    "LAS BALBINAS",
+                    "LAS CASITAS",
+                    "LIBERTAD OESTE",
+                    "LOMAS DE LA CARANTA",
+                    "LOS CHACOS",
+                    "LOS CHAURE",
+                    "LOS OLIVOS",
+                    "LOS ROBLES",
+                    "MORENO",
+                    "MUNDO NUEVO",
+                    "NUEVA CADIZ",
+                    "OTRA SABANA",
+                    "PEÑA BLANCA",
+                    "PUNTA BERGANTIN",
+                    "PUNTA BRAVA",
+                    "POLANCO",
+                    "PLATANAL",
+                    "PUERTO MORENO",
+                    "SALAZAR GARCIA",
+                    "SAN FERNANDO",
+                    "SAN JUDAS TADEO",
+                    "SAN LORENZO",
+                    "SAN MARTIN",
+                    "SIN UBICAR",
+                    "TAMARINDO"
+                  ].map((sector) => (
+                    <option key={sector} value={sector}>
+                      {sector}
+                    </option>
+                  ))}
                 </select>
               </div>
+
+              {/* Teléfono */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Teléfono
@@ -334,6 +405,8 @@ const Modal = ({
                   placeholder="0414-1234567"
                 />
               </div>
+
+              {/* Dirección */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Dirección
@@ -348,6 +421,8 @@ const Modal = ({
                   placeholder="Dirección completa"
                 />
               </div>
+
+              {/* Institución */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Institución
@@ -362,9 +437,11 @@ const Modal = ({
                   placeholder="Institución que solicita"
                 />
               </div>
+
+              {/* Responsable Social */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Responsable Social / Institución
+                  Responsable Social
                 </label>
                 <input
                   type="text"
@@ -376,6 +453,8 @@ const Modal = ({
                   placeholder="Nombre del responsable"
                 />
               </div>
+
+              {/* Tipo de Solicitud */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Tipo de Solicitud
@@ -388,18 +467,29 @@ const Modal = ({
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
                 >
                   <option value="">Seleccione un tipo</option>
-                  <option value="MEDICAMENTOS">MEDICAMENTOS</option>
-                  <option value="AYUDAS TECNICAS">AYUDAS TÉCNICAS</option>
-                  <option value="INTERVENCION QUIRURGICA">
-                    INTERVENCIÓN QUIRÚRGICA
-                  </option>
-                  <option value="EXAMENES ESPECIALIZADOS">
-                    EXÁMENES ESPECIALIZADOS
-                  </option>
-                  <option value="SITUACION SOCIAL">SITUACIÓN SOCIAL</option>
-                  <option value="OTROS">OTROS</option>
+                  {[
+                    "AYUDA ECONOMICA",
+                    "AYUDA MEDICA",
+                    "AYUDAS TECNICAS",
+                    "CEMENTO",
+                    "LAMINAS",
+                    "MANTO",
+                    "MANTO FLEX",
+                    "MEDICAMENTOS",
+                    "MATERIALES DE CONSTRUCCION",
+                    "POR INFORMACION",
+                    "TANQUE"
+                  ]
+                    .sort()
+                    .map((tipo) => (
+                      <option key={tipo} value={tipo}>
+                        {tipo}
+                      </option>
+                    ))}
                 </select>
               </div>
+
+              {/* Estado */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Estado
@@ -442,6 +532,8 @@ const Modal = ({
                 </select>
               </div>
             </div>
+
+            {/* Observación */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Observación o Motivo de la Solicitud
@@ -455,30 +547,31 @@ const Modal = ({
                 placeholder="Describa detalladamente la situación, necesidades y motivos de la solicitud..."
               ></textarea>
             </div>
-            {/* Campo del PIN de Seguridad - Solo se muestra si pinRequired es true */}
+
+            {/* Campo del PIN de Seguridad (solo si es requerido) */}
             {pinRequired && (
               <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl shadow-inner">
-                <label htmlFor="pin" className="block text-base font-bold text-yellow-800 mb-2">
+                <label className="block text-base font-bold text-yellow-800 mb-2">
                   ⚠️ PIN de Seguridad Requerido ⚠️
                 </label>
                 <input
-                  type="password" // Usa "password" para ocultar los dígitos
-                  id="pin"
+                  type="password"
                   name="pin"
                   value={pinInput}
                   onChange={handlePinInputChange}
-                  className="mt-1 block w-full px-4 py-3 border border-yellow-400 rounded-xl shadow-sm focus:outline-none focus:ring-yellow-500 focus:border-yellow-500 sm:text-base"
+                  className="w-full px-4 py-3 border border-yellow-400 rounded-xl focus:outline-none focus:border-yellow-500"
                   maxLength="6"
-                  pattern="\d{6}" // Asegura que solo se puedan ingresar 6 dígitos numéricos
-                  title="Debe ser un PIN de 6 dígitos numéricos"
-                  required // Hace que el campo sea obligatorio cuando se muestra
-                  placeholder="Ingrese el PIN de 6 dígitos aquí"
+                  pattern="\d{6}"
+                  placeholder="Ingrese PIN de 6 dígitos"
+                  required
                 />
                 <p className="text-sm text-yellow-700 mt-2">
-                  Este beneficiario ha solicitado ayudas recientemente. Ingrese el PIN para continuar.
+                  Esta persona ya tiene 2 o más solicitudes en los últimos 3 meses. Ingrese el PIN para continuar.
                 </p>
               </div>
             )}
+
+            {/* Mostrar código y fecha si se está editando */}
             {selectedAyuda && (
               <div className="bg-gray-50 p-4 rounded-xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -501,6 +594,8 @@ const Modal = ({
                 </div>
               </div>
             )}
+
+            {/* Botones */}
             <div className="flex justify-end space-x-4 pt-4">
               <button
                 type="button"

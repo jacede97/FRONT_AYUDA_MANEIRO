@@ -5,18 +5,6 @@ import Modal from "../../layout/Modal";
 import Alert from "../Alert";
 import ConfirmDeleteModal from "../../layout/ConfirmDeleteModal";
 
-// Define la URL base de tu API usando la variable de entorno para Render
-// o la URL de Render para pruebas locales.
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://maneiro-api.onrender.com/api';
-
-// Crea una instancia de Axios con la URL base
-const api = axios.create({
-  baseURL: API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
 const Dashboard = () => {
   const [alert, setAlert] = useState({ show: false, message: "", type: "" });
   const [ayudas, setAyudas] = useState([]);
@@ -33,10 +21,6 @@ const Dashboard = () => {
     title: "",
     headerColor: "",
   });
-
-  // NUEVOS ESTADOS PARA LA LÓGICA DEL PIN
-  const [pinRequired, setPinRequired] = useState(false); // Indica si se necesita un PIN
-  const [pinInput, setPinInput] = useState(''); // Valor del PIN ingresado
 
   const [formData, setFormData] = useState({
     cedula: "",
@@ -55,6 +39,10 @@ const Dashboard = () => {
     observacion: "",
     responsableInstitucion: "",
   });
+
+  // Estados para el sistema de PIN
+  const [pinRequired, setPinRequired] = useState(false);
+  const [pinInput, setPinInput] = useState("");
 
   useEffect(() => {
     if (alert.show) {
@@ -100,32 +88,19 @@ const Dashboard = () => {
   const fetchAyudas = useCallback(async () => {
     console.log("INTENTANDO: Cargar ayudas desde la API...");
     try {
-      // Usar la instancia 'api' para la URL relativa
-      const response = await api.get("/ayudas/");
-      console.log(
-        "ÉXITO: Respuesta de la API (datos crudos de Ayudas):",
-        response.data
-      );
+      const response = await axios.get("https://maneiro-api.onrender.com/api/");
+      console.log("ÉXITO: Respuesta de la API (datos crudos de Ayudas):", response.data);
 
-      const apiAyudas = response.data.map((ayuda) => {
-        return {
-          ...ayuda,
-          id: ayuda.id,
-          fecha: new Date(ayuda.fecha).toISOString().split("T")[0],
-          // Asegúrate de mapear fecha_registro aquí
-          fecha_registro: ayuda.fecha_registro, // Añadido para la lógica del PIN
-          beneficiario: ayuda.beneficiario || "",
-          nacionalidad:
-            ayuda.cedula &&
-            typeof ayuda.cedula === "string" &&
-            ayuda.cedula.startsWith("V")
-              ? "V"
-              : "E",
-          sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
-          fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
-          responsableInstitucion: ayuda.responsableInstitucion || "",
-        };
-      });
+      const apiAyudas = response.data.map((ayuda) => ({
+        ...ayuda,
+        id: ayuda.id,
+        fecha: new Date(ayuda.fecha).toISOString().split("T")[0],
+        beneficiario: ayuda.beneficiario || "",
+        nacionalidad: ayuda.cedula && typeof ayuda.cedula === "string" && ayuda.cedula.startsWith("V") ? "V" : "E",
+        sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
+        fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
+        responsableInstitucion: ayuda.responsableInstitucion || "",
+      }));
       setAyudas(apiAyudas);
       setAlert({
         show: true,
@@ -150,6 +125,26 @@ const Dashboard = () => {
     fetchAyudas();
   }, [fetchAyudas]);
 
+  // Función para verificar si se necesita PIN
+  const checkIfPinRequired = (cedula, allAyudas) => {
+    if (!cedula) return false;
+
+    const today = new Date();
+    const threeMonthsAgo = new Date(today);
+    threeMonthsAgo.setMonth(today.getMonth() - 3);
+
+    const recentAyudas = allAyudas.filter((ayuda) => {
+      const ayudaDate = new Date(ayuda.fecha);
+      return (
+        ayuda.cedula === cedula &&
+        ayudaDate >= threeMonthsAgo &&
+        ayudaDate <= today
+      );
+    });
+
+    return recentAyudas.length >= 2;
+  };
+
   const handleRowSelect = (ayuda) => {
     setSelectedAyuda(ayuda);
   };
@@ -167,13 +162,12 @@ const Dashboard = () => {
 
     try {
       console.log(`Buscando beneficiario para cédula: ${cedula}`);
-      const response = await api.get(`/registro_electoral/buscar/?cedula=${cedula}`);
+      const response = await axios.get(
+        `https://maneiro-api.onrender.com/registro_electoral/buscar/?cedula=${cedula}`
+      );
       const data = response.data;
       console.log("Respuesta completa de la API de registro electoral:", data);
-      console.log(
-        "Campo 'nombre' recibido de la API de Registro:",
-        data.nombre
-      );
+      console.log("Campo 'nombre' recibido de la API de Registro:", data.nombre);
 
       setFormData((prev) => ({
         ...prev,
@@ -185,6 +179,12 @@ const Dashboard = () => {
         municipio: data.municipio,
         sector: data.sector,
       }));
+
+      // Verificar si se necesita PIN después de buscar
+      const requiresPin = checkIfPinRequired(cedula, ayudas);
+      setPinRequired(requiresPin);
+      if (!requiresPin) setPinInput("");
+
       setAlert({
         show: true,
         message: "Beneficiario encontrado y datos rellenados.",
@@ -215,55 +215,84 @@ const Dashboard = () => {
   };
 
   const openModal = (ayuda = null) => {
-    setSelectedAyuda(ayuda);
-    setFormData({
-      cedula: ayuda ? ayuda.cedula : "",
-      beneficiario: ayuda ? ayuda.beneficiario || "" : "",
-      nacionalidad: ayuda ? ayuda.nacionalidad : "",
-      sexo: ayuda ? ayuda.sexo : "",
-      fechaNacimiento: ayuda ? formatToYYYYMMDD(ayuda.fechaNacimiento) : "",
-      parroquia: ayuda ? ayuda.parroquia : "",
-      municipio: ayuda ? ayuda.municipio : "",
-      sector: ayuda ? ayuda.sector : "",
-      telefono: ayuda ? ayuda.telefono : "",
-      direccion: ayuda ? ayuda.direccion : "",
-      institucion: ayuda ? ayuda.institucion : "",
-      estado: ayuda ? ayuda.estado : "REGISTRADO / RECIBIDO",
-      tipo: ayuda ? ayuda.tipo : "",
-      observacion: ayuda ? ayuda.observacion || "" : "",
-      responsableInstitucion: ayuda ? ayuda.responsableInstitucion || "" : "",
-    });
-    setModalProps({
-      title: ayuda ? "Editar Ayuda" : "Nueva Ayuda",
-      headerColor: ayuda ? "bg-[#FFCB00]" : "bg-[#0095D4]",
-    });
-    setPinRequired(false); // Resetea el PIN cuando se abre el modal
-    setPinInput(''); // Limpia el input del PIN
+    if (ayuda) {
+      setSelectedAyuda(ayuda);
+      setFormData({
+        cedula: ayuda.cedula,
+        beneficiario: ayuda.beneficiario || "",
+        nacionalidad: ayuda.nacionalidad,
+        sexo: ayuda.sexo,
+        fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
+        parroquia: ayuda.parroquia,
+        municipio: ayuda.municipio,
+        sector: ayuda.sector,
+        telefono: ayuda.telefono,
+        direccion: ayuda.direccion,
+        institucion: ayuda.institucion,
+        estado: ayuda.estado,
+        tipo: ayuda.tipo,
+        observacion: ayuda.observacion || "",
+        responsableInstitucion: ayuda.responsableInstitucion || "",
+      });
+      setPinRequired(false);
+      setPinInput("");
+      setModalProps({
+        title: "Editar Ayuda",
+        headerColor: "bg-[#FFCB00]",
+      });
+    } else {
+      setSelectedAyuda(null);
+      setFormData({
+        cedula: "",
+        beneficiario: "",
+        nacionalidad: "",
+        sexo: "",
+        fechaNacimiento: "",
+        parroquia: "",
+        municipio: "",
+        sector: "",
+        telefono: "",
+        direccion: "",
+        institucion: "",
+        estado: "REGISTRADO / RECIBIDO",
+        tipo: "",
+        observacion: "",
+        responsableInstitucion: "",
+      });
+      setPinRequired(false);
+      setPinInput("");
+      setModalProps({
+        title: "Nueva Ayuda",
+        headerColor: "bg-[#0095D4]",
+      });
+    }
     setIsModalOpen(true);
   };
 
   const closeModal = () => {
     setIsModalOpen(false);
+    setPinInput("");
     setAlert({ show: false, message: "", type: "" });
-    setPinRequired(false); // Resetea el estado del PIN al cerrar el modal
-    setPinInput(''); // Limpia el input del PIN
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
 
-  // NUEVA FUNCIÓN PARA MANEJAR EL CAMBIO DEL INPUT DEL PIN
-  const handlePinInputChange = (e) => {
-    setPinInput(e.target.value);
+    // Verificar si cambió la cédula y estamos en modo "nuevo"
+    if (name === "cedula" && !selectedAyuda) {
+      const requiresPin = checkIfPinRequired(value, ayudas);
+      setPinRequired(requiresPin);
+      if (!requiresPin) {
+        setPinInput("");
+      }
+    }
   };
-
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validaciones de campos requeridos
+    // Validación de campos obligatorios
     if (
       !formData.cedula ||
       !formData.beneficiario ||
@@ -282,56 +311,17 @@ const Dashboard = () => {
       return;
     }
 
-    // LÓGICA DE VALIDACIÓN DE AYUDAS FRECUENTES Y PIN DE SEGURIDAD
-    if (!selectedAyuda) { // Solo aplica para nuevas ayudas
-      const threeMonthsAgo = new Date();
-      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-
-      const recentAyudasCount = ayudas.filter(ayuda => {
-        // Filtra ayudas por la misma cédula y que estén dentro de los últimos 3 meses
-        if (ayuda.cedula === formData.cedula && ayuda.fecha_registro) {
-          try {
-            const registroDate = new Date(ayuda.fecha_registro);
-            return registroDate >= threeMonthsAgo;
-          } catch (e) {
-            console.error("Error al parsear fecha_registro para validación de PIN:", ayuda.fecha_registro, e);
-            return false;
-          }
-        }
-        return false;
-      }).length;
-
-      console.log(`Ayudas recientes para ${formData.cedula} en los últimos 3 meses: ${recentAyudasCount}`);
-
-      // Si tiene 2 o más solicitudes en los últimos 3 meses, requiere PIN
-      if (recentAyudasCount >= 2) {
-        if (!pinRequired) {
-          setPinRequired(true);
-          setAlert({
-            show: true,
-            message: "¡Alerta! Este beneficiario tiene más de 2 solicitudes en los últimos 3 meses. Ingrese el PIN de seguridad (6 dígitos numéricos) para registrar la ayuda.",
-            type: "warning",
-          });
-          return; // Detiene la ejecución para esperar el PIN
-        } else {
-          // Si el PIN es requerido, validarlo
-          if (!pinInput || !/^\d{6}$/.test(pinInput)) { // PIN debe ser 6 dígitos numéricos
-            setAlert({
-              show: true,
-              message: "PIN de seguridad inválido. Debe ser de 6 dígitos numéricos.",
-              type: "error",
-            });
-            return; // Detiene la ejecución si el PIN es inválido
-          }
-          // Si el PIN es válido, se continúa con el proceso de guardado
-          setAlert({ show: false, message: "", type: "" }); // Limpia alerta
-          setPinRequired(false); // Resetea estado del PIN
-          setPinInput(''); // Limpia input del PIN
-        }
-      }
+    // Validar PIN si es requerido
+    if (pinRequired && (!pinInput || !/^\d{6}$/.test(pinInput))) {
+      setAlert({
+        show: true,
+        message: "Se requiere un PIN de 6 dígitos para continuar.",
+        type: "warning",
+      });
+      return;
     }
-    // FIN LÓGICA DE VALIDACIÓN DE AYUDAS FRECUENTES Y PIN DE SEGURIDAD
 
+    // Generar código
     let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
     if (!selectedAyuda) {
       const maxId = ayudas.reduce((max, ayuda) => {
@@ -339,7 +329,6 @@ const Dashboard = () => {
         return isNaN(num) ? max : Math.max(max, num);
       }, 0);
       generatedCodigo = `AYU-${String(maxId + 1).padStart(3, "0")}`;
-      console.log("Código secuencial generado (Frontend):", generatedCodigo);
     }
 
     const apiData = {
@@ -348,7 +337,7 @@ const Dashboard = () => {
       beneficiario: formData.beneficiario,
       nacionalidad: formData.nacionalidad === "V" ? "V" : "E",
       sexo: formData.sexo === "Masculino" ? "M" : "F",
-      fecha: new Date().toISOString().split("T")[0], // Fecha actual de registro
+      fecha: new Date().toISOString().split("T")[0],
       fechaNacimiento: formData.fechaNacimiento,
       parroquia: formData.parroquia,
       municipio: formData.municipio,
@@ -362,21 +351,19 @@ const Dashboard = () => {
       responsableInstitucion: formData.responsableInstitucion,
     };
 
-    console.log("Datos que se enviarán a la API (apiData):", apiData);
-
     try {
       if (selectedAyuda) {
-        await api.put(`/ayudas/${selectedAyuda.id}/`, apiData);
+        await axios.put(`https://maneiro-api.onrender.com/api/${selectedAyuda.id}/`, apiData);
         setAlert({
           show: true,
-          message: "Ayuda actualizada exitosamente en la base de datos.",
+          message: "Ayuda actualizada exitosamente.",
           type: "success",
         });
       } else {
-        await api.post("/ayudas/", apiData);
+        await axios.post("https://maneiro-api.onrender.com/api/", apiData);
         setAlert({
           show: true,
-          message: "Nueva ayuda registrada exitosamente en la base de datos.",
+          message: "Nueva ayuda registrada exitosamente.",
           type: "success",
         });
       }
@@ -384,15 +371,10 @@ const Dashboard = () => {
       setSelectedAyuda(null);
       fetchAyudas();
     } catch (error) {
-      console.error(
-        "Error al guardar la ayuda:",
-        error.response?.data || error
-      );
+      console.error("Error al guardar la ayuda:", error.response?.data || error);
       setAlert({
         show: true,
-        message: `Error al guardar la ayuda: ${
-          error.response?.data?.detail || error.message
-        }`,
+        message: `Error al guardar la ayuda: ${error.response?.data?.detail || error.message}`,
         type: "error",
       });
     }
@@ -407,12 +389,11 @@ const Dashboard = () => {
 
   const confirmDelete = async () => {
     if (itemToDelete) {
-      console.log("Intentando eliminar ID:", itemToDelete.id);
       try {
-        await api.delete(`/ayudas/${itemToDelete.id}/`);
+        await axios.delete(`https://maneiro-api.onrender.com/api/${itemToDelete.id}/`);
         setAlert({
           show: true,
-          message: "Ayuda eliminada exitosamente de la base de datos.",
+          message: "Ayuda eliminada exitosamente.",
           type: "success",
         });
         setIsConfirmModalOpen(false);
@@ -420,15 +401,10 @@ const Dashboard = () => {
         setSelectedAyuda(null);
         fetchAyudas();
       } catch (error) {
-        console.error(
-          "Error al eliminar la ayuda:",
-          error.response?.data || error
-        );
+        console.error("Error al eliminar la ayuda:", error.response?.data || error);
         setAlert({
           show: true,
-          message: `Error al eliminar la ayuda: ${
-            error.response?.data?.detail || error.message
-          }`,
+          message: `Error al eliminar la ayuda: ${error.response?.data?.detail || error.message}`,
           type: "error",
         });
         setIsConfirmModalOpen(false);
@@ -442,16 +418,35 @@ const Dashboard = () => {
     setItemToDelete(null);
   };
 
+  // Filtro mejorado para evitar falsos positivos en búsquedas numéricas
   const filteredAyudas = ayudas.filter((ayuda) => {
-    const matchesCodigo =
-      ayuda.codigo?.toLowerCase().includes(searchCodigo.toLowerCase()) || false;
     const matchesPalabra =
       ayuda.beneficiario?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
       ayuda.cedula?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
       ayuda.sector?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
       false;
 
-    return matchesCodigo && matchesPalabra;
+    const matchesCodigo = () => {
+      if (!searchCodigo.trim()) return true;
+      const userQuery = searchCodigo.trim().toUpperCase();
+      const codigo = ayuda.codigo?.toUpperCase();
+      if (!codigo) return false;
+
+      const match = codigo.match(/AYU-(\d+)/);
+      if (!match) return false;
+
+      const numeroSecuencial = match[1];
+      const numSecuencial = parseInt(numeroSecuencial, 10);
+      const numUsuario = parseInt(userQuery.replace(/^AYU-/, ""), 10);
+
+      if (!isNaN(numUsuario) && !isNaN(numSecuencial)) {
+        return numSecuencial === numUsuario;
+      }
+
+      return codigo === userQuery || numeroSecuencial === userQuery.replace(/^AYU-/, "");
+    };
+
+    return matchesCodigo() && matchesPalabra;
   });
 
   const sortedAyudas = [...filteredAyudas].sort((a, b) => {
@@ -500,25 +495,19 @@ const Dashboard = () => {
             setAlert={setAlert}
           />
         )}
-        {/* Encabezado principal: Título y descripción de la gestión de ayudas */}
-        <div className="mb-8 text-center rounded-xl bg-gradient-to-r from-[#] to-[#] p-6 shadow-xl  border border-gray-400">
-          <h2 className="text-2xl font-bold text-gray-800">
-            Gestión de Ayudas
-          </h2>
-          <p className="text-gray-600 mt-1">
-            Administre las ayudas sociales de la Alcaldía de Maneiro
-          </p>
+
+        {/* Encabezado */}
+        <div className="mb-8 text-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-700 p-6 shadow-xl border border-gray-400 text-white">
+          <h2 className="text-2xl font-bold">Gestión de Ayudas</h2>
+          <p className="text-blue-100 mt-1">Administre las ayudas sociales de la Alcaldía de Maneiro</p>
         </div>
 
-        {/* Sección agrupada de Filtros de Búsqueda y Botones de Acción */}
+        {/* Filtros y botones */}
         <div className="bg-white p-6 rounded-2xl shadow-lg border border-blue-100 mt-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-            {/* Contenedor de Filtros de Búsqueda (Ahora a la izquierda) */}
             <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto mb-4 md:mb-0">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Buscar por Código
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Buscar por Código</label>
                 <input
                   type="text"
                   value={searchCodigo}
@@ -528,9 +517,7 @@ const Dashboard = () => {
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Buscar por Palabra
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Buscar por Palabra</label>
                 <input
                   type="text"
                   value={searchPalabra}
@@ -541,29 +528,16 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Contenedor de Botones de Acción (Ahora a la derecha) */}
             <div className="flex flex-wrap gap-2">
-              {/* Botón Nuevo - Azul */}
               <button
                 onClick={() => openModal()}
                 className="bg-[#0069B6] text-white px-4 py-2 rounded-xl hover:bg-[#003578] transition-all font-medium flex items-center shadow-lg text-sm transform hover:scale-105"
               >
-                <svg
-                  className="w-4 h-4 mr-1"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 Nuevo
               </button>
-              {/* Botón Editar - Amarillo */}
               <button
                 onClick={() => selectedAyuda && openModal(selectedAyuda)}
                 disabled={!selectedAyuda}
@@ -573,22 +547,11 @@ const Dashboard = () => {
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                <svg
-                  className="w-4 h-4 mr-1"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
                 Editar
               </button>
-              {/* Botón Eliminar - Rojo */}
               <button
                 onClick={handleDelete}
                 disabled={!selectedAyuda}
@@ -598,18 +561,8 @@ const Dashboard = () => {
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                <svg
-                  className="w-4 h-4 mr-1"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                  />
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
                 Eliminar
               </button>
@@ -617,7 +570,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Sección de la Tabla */}
+        {/* Tabla */}
         <div className="overflow-x-auto rounded-2xl shadow-lg mt-6 border border-blue-100 bg-white">
           <Table
             sortedAyudas={sortedAyudas}
@@ -627,12 +580,13 @@ const Dashboard = () => {
             renderSortArrow={renderSortArrow}
           />
         </div>
-        {/* Información de estado de la tabla */}
+
         <div className="mt-4 text-sm text-gray-600 text-center bg-white p-4 rounded-xl shadow-md border border-blue-100">
           Mostrando {sortedAyudas.length} de {ayudas.length} registros
         </div>
       </div>
-      {/* Modal de Registro/Edición (Delegado a Modal y AyudaForm) */}
+
+      {/* Modal */}
       <Modal
         isModalOpen={isModalOpen}
         closeModal={closeModal}
@@ -643,11 +597,15 @@ const Dashboard = () => {
         selectedAyuda={selectedAyuda}
         alert={alert}
         setAlert={setAlert}
-        // Nuevas props para el encabezado del modal
         modalTitle={modalProps.title}
         modalHeaderColor={modalProps.headerColor}
+        // Props del PIN
+        pinRequired={pinRequired}
+        pinInput={pinInput}
+        handlePinInputChange={(e) => setPinInput(e.target.value)}
       />
-      {/* Modal de Confirmación de Eliminación */}
+
+      {/* Confirmar eliminación */}
       <ConfirmDeleteModal
         isOpen={isConfirmModalOpen}
         onClose={closeConfirmModal}

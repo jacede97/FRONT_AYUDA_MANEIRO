@@ -121,7 +121,7 @@ const ReportesAyudas: React.FC = () => {
         setError(null); // Limpia cualquier error previo
 
         // URL de tu API de Django REST Framework
-        const API_URL = "https://maneiro-api.onrender.com/api/ayudas/";
+        const API_URL = "https://maneiro-api.onrender.com/api/";
 
         const response = await axios.get<Ayuda[]>(API_URL); // Usa Axios para la petición GET
 
