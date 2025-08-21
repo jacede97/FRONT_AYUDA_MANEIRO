@@ -70,45 +70,43 @@ const Table = ({
           <tr>
             <th
               onClick={() => requestSort("codigo")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20 rounded-tl-xl"
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20 rounded-tl-xl"
             >
               Código {renderSortArrow("codigo")}
             </th>
             <th
               onClick={() => requestSort("fecha")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
             >
               Fecha {renderSortArrow("fecha")}
             </th>
             <th
               onClick={() => requestSort("cedula")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
             >
               Cédula {renderSortArrow("cedula")}
             </th>
             <th
               onClick={() => requestSort("beneficiario")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
             >
               Beneficiario {renderSortArrow("beneficiario")}
             </th>
-            {/* Encabezado de Sector con fondo naranja */}
             <th
               onClick={() => requestSort("sector")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer bg-orange-500 hover:bg-orange-600"
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer bg-orange-500 hover:bg-orange-600"
             >
               Sector {renderSortArrow("sector")}
             </th>
             <th
               onClick={() => requestSort("estado")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
             >
               Estado {renderSortArrow("estado")}
             </th>
-            {/* Encabezado de Tipo de Solicitud con fondo naranja */}
             <th
               onClick={() => requestSort("tipo")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer bg-orange-500 hover:bg-orange-600 rounded-tr-xl"
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer bg-orange-500 hover:bg-orange-600 rounded-tr-xl"
             >
               Tipo de Solicitud {renderSortArrow("tipo")}
             </th>
