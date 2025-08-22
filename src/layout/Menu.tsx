@@ -123,6 +123,7 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               <span>Reportes</span>
             </button>
 
+<<<<<<< HEAD
             {/* ✅ NUEVO: Botón "Registro de Selectores" */}
             <button
               onClick={() => setCurrentView("selectores")}
@@ -144,6 +145,8 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               <span>Registro de Selectores</span>
             </button>
 
+=======
+>>>>>>> 6c611e1bef9cfe2a0161dfecfdcd9db173bcc540
             <button
               onClick={() => setCurrentView("configuracion")}
               className="flex items-center px-3 py-2 text-black hover:bg-blue-100 hover:text-blue-700 rounded-lg font-medium w-full text-left"
@@ -217,6 +220,10 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               </svg>
             </button>
 
+<<<<<<< HEAD
+=======
+            {/* ✅ CORREGIDO: solo ícono, sin texto */}
+>>>>>>> 6c611e1bef9cfe2a0161dfecfdcd9db173bcc540
             <button
               onClick={() => setCurrentView("beneficiarios")}
               className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
@@ -257,6 +264,7 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               </svg>
             </button>
 
+<<<<<<< HEAD
             {/* ✅ NUEVO: Ícono para Registro de Selectores (versión colapsada) */}
             <button
               onClick={() => setCurrentView("selectores")}
@@ -278,6 +286,8 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               </svg>
             </button>
 
+=======
+>>>>>>> 6c611e1bef9cfe2a0161dfecfdcd9db173bcc540
             <button
               onClick={() => setCurrentView("configuracion")}
               className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
