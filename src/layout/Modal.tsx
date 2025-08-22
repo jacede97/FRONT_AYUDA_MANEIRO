@@ -124,7 +124,9 @@ const Modal = ({
                       : ""
                   }
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.beneficiario ? "bg-gray-100 cursor-not-allowed" : ""
+                    formData.beneficiario
+                      ? "bg-gray-100 cursor-not-allowed"
+                      : ""
                   }`}
                   placeholder="Nombre completo"
                 />
@@ -147,7 +149,9 @@ const Modal = ({
                       : ""
                   }
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.nacionalidad ? "bg-gray-100 cursor-not-allowed" : ""
+                    formData.nacionalidad
+                      ? "bg-gray-100 cursor-not-allowed"
+                      : ""
                   }`}
                 >
                   <option value="">Seleccione una nacionalidad</option>
@@ -381,7 +385,7 @@ const Modal = ({
                     "SAN LORENZO",
                     "SAN MARTIN",
                     "SIN UBICAR",
-                    "TAMARINDO"
+                    "TAMARINDO",
                   ].map((sector) => (
                     <option key={sector} value={sector}>
                       {sector}
@@ -423,19 +427,22 @@ const Modal = ({
               </div>
 
               {/* Institución */}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Institución
                 </label>
-                <input
-                  type="text"
+                <select
                   name="institucion"
                   value={formData.institucion}
                   onChange={handleInputChange}
                   required
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
-                  placeholder="Institución que solicita"
-                />
+                >
+                  <option value="">Seleccione una institución</option>
+                  <option value="FUNDACION">Fundación</option>
+                  <option value="DESPACHO">Despacho</option>
+                </select>
               </div>
 
               {/* Responsable Social */}
@@ -478,7 +485,7 @@ const Modal = ({
                     "MEDICAMENTOS",
                     "MATERIALES DE CONSTRUCCION",
                     "POR INFORMACION",
-                    "TANQUE"
+                    "TANQUE",
                   ]
                     .sort()
                     .map((tipo) => (
@@ -561,12 +568,12 @@ const Modal = ({
                   onChange={handlePinInputChange}
                   className="w-full px-4 py-3 border border-yellow-400 rounded-xl focus:outline-none focus:border-yellow-500"
                   maxLength="6"
-                  pattern="\d{6}"
-                  placeholder="Ingrese PIN de 6 dígitos"
+                  placeholder="Ingrese PIN: 270725"
                   required
                 />
                 <p className="text-sm text-yellow-700 mt-2">
-                  Esta persona ya tiene 2 o más solicitudes en los últimos 3 meses. Ingrese el PIN para continuar.
+                  Esta persona ya tiene 2 o más solicitudes en los últimos 3
+                  meses. Solo personal autorizado puede registrar nuevas ayudas.
                 </p>
               </div>
             )}

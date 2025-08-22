@@ -40,9 +40,14 @@ const Dashboard = () => {
     responsableInstitucion: "",
   });
 
-  // Estados para el sistema de PIN
+  // Estados para el sistema de PIN (registro)
   const [pinRequired, setPinRequired] = useState(false);
   const [pinInput, setPinInput] = useState("");
+
+  // Estados para PIN en acciones (editar/eliminar)
+  const [pinForAction, setPinForAction] = useState("");
+  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
+  const [actionToConfirm, setActionToConfirm] = useState(null); // 'edit' o 'delete'
 
   useEffect(() => {
     if (alert.show) {
@@ -85,37 +90,47 @@ const Dashboard = () => {
     }
   };
 
-  const fetchAyudas = useCallback(async () => {
+  const fetchAyudas = useCallback(async (showAlert = true) => {
     console.log("INTENTANDO: Cargar ayudas desde la API...");
     try {
       const response = await axios.get("https://maneiro-api.onrender.com/api/");
-      console.log("ÉXITO: Respuesta de la API (datos crudos de Ayudas):", response.data);
+      console.log(
+        "ÉXITO: Respuesta de la API (datos crudos de Ayudas):",
+        response.data
+      );
 
       const apiAyudas = response.data.map((ayuda) => ({
         ...ayuda,
         id: ayuda.id,
         fecha: new Date(ayuda.fecha).toISOString().split("T")[0],
         beneficiario: ayuda.beneficiario || "",
-        nacionalidad: ayuda.cedula && typeof ayuda.cedula === "string" && ayuda.cedula.startsWith("V") ? "V" : "E",
+        nacionalidad:
+          ayuda.cedula &&
+          typeof ayuda.cedula === "string" &&
+          ayuda.cedula.startsWith("V")
+            ? "V"
+            : "E",
         sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
         fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
         responsableInstitucion: ayuda.responsableInstitucion || "",
       }));
       setAyudas(apiAyudas);
-      setAlert({
-        show: true,
-        message: "Datos cargados exitosamente desde la API.",
-        type: "success",
-      });
+
+      // ✅ Solo muestra alerta si se solicita
+      if (showAlert) {
+        setAlert({
+          show: true,
+          message: "Datos cargados exitosamente.",
+          type: "success",
+        });
+      }
     } catch (error) {
       console.error("ERROR: Fallo al cargar las ayudas desde la API.");
       console.error("Detalles del error:", error);
-      console.error("Respuesta del error (si existe):", error.response?.data);
-      console.error("Estado del error (si existe):", error.response?.status);
       setAlert({
         show: true,
         message:
-          "¡Error al conectar con la API! No se pudieron cargar los datos. Por favor, asegúrese de que el backend esté funcionando y que CORS esté configurado.",
+          "¡Error al conectar con la API! No se pudieron cargar los datos.",
         type: "error",
       });
     }
@@ -125,7 +140,7 @@ const Dashboard = () => {
     fetchAyudas();
   }, [fetchAyudas]);
 
-  // Función para verificar si se necesita PIN
+  // Función para verificar si se necesita PIN al registrar
   const checkIfPinRequired = (cedula, allAyudas) => {
     if (!cedula) return false;
 
@@ -167,7 +182,10 @@ const Dashboard = () => {
       );
       const data = response.data;
       console.log("Respuesta completa de la API de registro electoral:", data);
-      console.log("Campo 'nombre' recibido de la API de Registro:", data.nombre);
+      console.log(
+        "Campo 'nombre' recibido de la API de Registro:",
+        data.nombre
+      );
 
       setFormData((prev) => ({
         ...prev,
@@ -311,12 +329,12 @@ const Dashboard = () => {
       return;
     }
 
-    // Validar PIN si es requerido
-    if (pinRequired && (!pinInput || !/^\d{6}$/.test(pinInput))) {
+    // Validar PIN si es requerido (registro)
+    if (pinRequired && (!pinInput || pinInput !== "270725")) {
       setAlert({
         show: true,
-        message: "Se requiere un PIN de 6 dígitos para continuar.",
-        type: "warning",
+        message: "PIN incorrecto. No se puede registrar la ayuda.",
+        type: "error",
       });
       return;
     }
@@ -353,10 +371,13 @@ const Dashboard = () => {
 
     try {
       if (selectedAyuda) {
-        await axios.put(`https://maneiro-api.onrender.com/api/${selectedAyuda.id}/`, apiData);
+        await axios.put(
+          `https://maneiro-api.onrender.com/api/${selectedAyuda.id}/`,
+          apiData
+        );
         setAlert({
           show: true,
-          message: "Ayuda actualizada exitosamente.",
+          message: "Ayuda actualizada exitosamente. ",
           type: "success",
         });
       } else {
@@ -369,42 +390,91 @@ const Dashboard = () => {
       }
       closeModal();
       setSelectedAyuda(null);
-      fetchAyudas();
+      fetchAyudas(false); // Recarga sin mostrar "Datos cargados..."
     } catch (error) {
-      console.error("Error al guardar la ayuda:", error.response?.data || error);
+      console.error(
+        "Error al guardar la ayuda:",
+        error.response?.data || error
+      );
       setAlert({
         show: true,
-        message: `Error al guardar la ayuda: ${error.response?.data?.detail || error.message}`,
+        message: `Error al guardar la ayuda: ${
+          error.response?.data?.detail || error.message
+        }`,
         type: "error",
       });
     }
   };
 
-  const handleDelete = () => {
-    if (selectedAyuda) {
+  // --- NUEVAS FUNCIONES: PIN para Editar y Eliminar ---
+  const requirePinForAction = (action) => {
+    if (!selectedAyuda) return;
+    setActionToConfirm(action);
+    setIsPinModalOpen(true);
+    setPinForAction("");
+  };
+
+  const confirmPinAction = () => {
+    if (pinForAction !== "270725") {
+      setAlert({
+        show: true,
+        message: "PIN incorrecto. Acción denegada. ⚠️",
+        type: "error",
+      });
+      setIsPinModalOpen(false);
+      setPinForAction("");
+      setActionToConfirm(null);
+      return;
+    }
+
+    if (actionToConfirm === "edit") {
+      openModal(selectedAyuda);
+    } else if (actionToConfirm === "delete") {
       setItemToDelete(selectedAyuda);
       setIsConfirmModalOpen(true);
+    }
+
+    setIsPinModalOpen(false);
+    setPinForAction("");
+    setActionToConfirm(null);
+  };
+
+  const handleDelete = () => {
+    if (selectedAyuda) {
+      requirePinForAction("delete");
     }
   };
 
   const confirmDelete = async () => {
     if (itemToDelete) {
       try {
-        await axios.delete(`https://maneiro-api.onrender.com/api/${itemToDelete.id}/`);
+        await axios.delete(
+          `https://maneiro-api.onrender.com/api/${itemToDelete.id}/`
+        );
+
+        // ✅ Mensaje claro: eliminación
         setAlert({
           show: true,
-          message: "Ayuda eliminada exitosamente.",
+          message: "Ayuda eliminada exitosamente. ❌",
           type: "success",
         });
+
         setIsConfirmModalOpen(false);
         setItemToDelete(null);
         setSelectedAyuda(null);
-        fetchAyudas();
+
+        // ✅ Recarga datos, pero SIN mostrar alerta de carga
+        fetchAyudas(false);
       } catch (error) {
-        console.error("Error al eliminar la ayuda:", error.response?.data || error);
+        console.error(
+          "Error al eliminar la ayuda:",
+          error.response?.data || error
+        );
         setAlert({
           show: true,
-          message: `Error al eliminar la ayuda: ${error.response?.data?.detail || error.message}`,
+          message: `Error al eliminar la ayuda: ${
+            error.response?.data?.detail || error.message
+          }`,
           type: "error",
         });
         setIsConfirmModalOpen(false);
@@ -412,7 +482,6 @@ const Dashboard = () => {
       }
     }
   };
-
   const closeConfirmModal = () => {
     setIsConfirmModalOpen(false);
     setItemToDelete(null);
@@ -443,7 +512,10 @@ const Dashboard = () => {
         return numSecuencial === numUsuario;
       }
 
-      return codigo === userQuery || numeroSecuencial === userQuery.replace(/^AYU-/, "");
+      return (
+        codigo === userQuery ||
+        numeroSecuencial === userQuery.replace(/^AYU-/, "")
+      );
     };
 
     return matchesCodigo() && matchesPalabra;
@@ -486,8 +558,8 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="flex-1 p-6 font-sans bg-gray-50 rounded-xl">
-      <div className="space-y-6">
+    <div className="flex-1 p-2 font-sans bg-gray-50 rounded-xl">
+      <div className="space-y-4">
         {alert.show && (
           <Alert
             message={alert.message}
@@ -497,17 +569,35 @@ const Dashboard = () => {
         )}
 
         {/* Encabezado */}
-        <div className="mb-8 text-center rounded-xl bg-gradient-to-r from-blue-500 to-blue-700 p-6 shadow-xl border border-gray-400 text-white">
-          <h2 className="text-2xl font-bold">Gestión de Ayudas</h2>
-          <p className="text-blue-100 mt-1">Administre las ayudas sociales de la Alcaldía de Maneiro</p>
+        <div className="mb-6 flex flex-col flex justify-center sm:flex-row items-center sm:items-start gap-4 rounded-xl bg-white p-4 shadow-lg border border-gray-300">
+          <img
+            src="/LOGO.png"
+            alt="Logo de la Aplicación"
+            className="h-16 w-auto object-contain"
+            onError={(e) => {
+              e.currentTarget.src =
+                "https://placehold.co/64x64/e2e8f0/000000?text=LOGO";
+              e.currentTarget.onerror = null;
+            }}
+          />
+          <div className="text-center sm:text-left">
+            <h2 className="text-2xl text-center font-bold text-gray-800">
+              Gestión de Ayudas
+            </h2>
+            <p className="text-gray-600 mt-1">
+              Administre las ayudas sociales de la Alcaldía de Maneiro
+            </p>
+          </div>
         </div>
-
         {/* Filtros y botones */}
-        <div className="bg-white p-6 rounded-2xl shadow-lg border border-blue-100 mt-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-            <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto mb-4 md:mb-0">
+        <div className="bg-white p-6 rounded-2xl shadow-lg border border-blue-100">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            {/* Inputs */}
+            <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Buscar por Código</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Buscar por Código
+                </label>
                 <input
                   type="text"
                   value={searchCodigo}
@@ -517,7 +607,9 @@ const Dashboard = () => {
                 />
               </div>
               <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Buscar por Palabra</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Buscar por Palabra
+                </label>
                 <input
                   type="text"
                   value={searchPalabra}
@@ -528,18 +620,29 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            {/* Botones */}
+            <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
               <button
                 onClick={() => openModal()}
                 className="bg-[#0069B6] text-white px-4 py-2 rounded-xl hover:bg-[#003578] transition-all font-medium flex items-center shadow-lg text-sm transform hover:scale-105"
               >
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                <svg
+                  className="w-4 h-4 mr-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  />
                 </svg>
                 Nuevo
               </button>
               <button
-                onClick={() => selectedAyuda && openModal(selectedAyuda)}
+                onClick={() => selectedAyuda && requirePinForAction("edit")}
                 disabled={!selectedAyuda}
                 className={`px-4 py-2 rounded-xl font-medium flex items-center shadow-lg text-sm transition-all transform hover:scale-105 ${
                   selectedAyuda
@@ -547,8 +650,18 @@ const Dashboard = () => {
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                <svg
+                  className="w-4 h-4 mr-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                  />
                 </svg>
                 Editar
               </button>
@@ -561,8 +674,18 @@ const Dashboard = () => {
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <svg
+                  className="w-4 h-4 mr-1"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
                 Eliminar
               </button>
@@ -581,12 +704,12 @@ const Dashboard = () => {
           />
         </div>
 
-        <div className="mt-4 text-sm text-gray-600 text-center bg-white p-4 rounded-xl shadow-md border border-blue-100">
+        <div className="mt-4 text-sm text-gray-600 text-center bg-white p-3 rounded-xl shadow-md border border-blue-100">
           Mostrando {sortedAyudas.length} de {ayudas.length} registros
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal de Registro/Edición */}
       <Modal
         isModalOpen={isModalOpen}
         closeModal={closeModal}
@@ -612,6 +735,50 @@ const Dashboard = () => {
         onConfirm={confirmDelete}
         itemName={itemToDelete?.beneficiario || "este elemento"}
       />
+
+      {/* Modal de PIN para Editar/Eliminar */}
+      {isPinModalOpen && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+          <div className="relative p-6 bg-white rounded-2xl shadow-xl max-w-md mx-auto">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">
+              🔐 Validación de Seguridad
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Para {actionToConfirm === "edit" ? "editar" : "eliminar"} esta
+              ayuda, ingrese el PIN de seguridad.
+            </p>
+            <input
+              type="password"
+              value={pinForAction}
+              onChange={(e) => setPinForAction(e.target.value)}
+              placeholder="Ingrese PIN (6 dígitos)"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6] text-center text-lg tracking-widest"
+              maxLength="6"
+              autoFocus
+              // ✅ Evita que el navegador recuerde este campo
+              autoComplete="one-time-code"
+            />
+            <div className="flex justify-end space-x-4 mt-6">
+              <button
+                onClick={() => {
+                  setIsPinModalOpen(false);
+                  setPinForAction("");
+                  setActionToConfirm(null);
+                }}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmPinAction}
+                className="px-4 py-2 bg-[#0069B6] text-white rounded-xl hover:bg-[#003578]"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

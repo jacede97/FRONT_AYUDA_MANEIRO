@@ -9,7 +9,6 @@ const Table = ({
   renderSortArrow, // Recibe la función para renderizar la flecha de ordenamiento desde el padre
 }) => {
   // --- Estado y Lógica de Paginación Interna ---
-  // Se ha cambiado el valor inicial de itemsPerPage a 10
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10); // Valor inicial ahora es 10
 
@@ -66,52 +65,48 @@ const Table = ({
 
   return (
     <div className="overflow-x-auto bg-white shadow-lg rounded-xl border border-blue-100">
-      {" "}
-      {/* Redondeado a rounded-xl y borde */}
       <table className="min-w-full divide-y divide-gray-200">
         <thead className="bg-[#0095D4]">
-          {" "}
-          {/* Fondo azul vibrante */}
           <tr>
             <th
               onClick={() => requestSort("codigo")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20 rounded-tl-xl" // Texto blanco y negrita, hover con opacidad
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20 rounded-tl-xl"
             >
               Código {renderSortArrow("codigo")}
             </th>
             <th
               onClick={() => requestSort("fecha")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20" // Texto blanco y negrita, hover con opacidad
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
             >
               Fecha {renderSortArrow("fecha")}
             </th>
             <th
               onClick={() => requestSort("cedula")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20" // Texto blanco y negrita, hover con opacidad
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
             >
               Cédula {renderSortArrow("cedula")}
             </th>
             <th
               onClick={() => requestSort("beneficiario")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20" // Texto blanco y negrita, hover con opacidad
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
             >
               Beneficiario {renderSortArrow("beneficiario")}
             </th>
             <th
               onClick={() => requestSort("sector")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20" // Texto blanco y negrita, hover con opacidad
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer bg-orange-500 hover:bg-orange-600"
             >
               Sector {renderSortArrow("sector")}
             </th>
             <th
               onClick={() => requestSort("estado")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20" // Texto blanco y negrita, hover con opacidad
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20"
             >
               Estado {renderSortArrow("estado")}
             </th>
             <th
               onClick={() => requestSort("tipo")}
-              className="px-3 py-2 text-left text-xs font-bold text-white uppercase tracking-wider cursor-pointer hover:bg-white hover:bg-opacity-20 rounded-tr-xl" // Texto blanco y negrita, hover con opacidad, rounded-tr-xl
+              className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer bg-orange-500 hover:bg-orange-600 rounded-tr-xl"
             >
               Tipo de Solicitud {renderSortArrow("tipo")}
             </th>
@@ -143,8 +138,6 @@ const Table = ({
                 </td>
                 <td className="px-3 py-2 text-sm text-gray-700">
                   <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-[#0069B6]">
-                    {" "}
-                    {/* Color de badge ajustado a la paleta */}
                     {ayuda.sector}
                   </span>
                 </td>
@@ -163,8 +156,6 @@ const Table = ({
                 </td>
                 <td className="px-3 py-2 text-sm text-gray-700">
                   <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-[#E0F2F7] text-[#0069B6]">
-                    {" "}
-                    {/* Color de badge ajustado a la paleta */}
                     {ayuda.tipo}
                   </span>
                 </td>
@@ -191,27 +182,25 @@ const Table = ({
           <select
             value={itemsPerPage}
             onChange={handleItemsPerPageChange}
-            className="block w-full rounded-xl border-gray-300 shadow-sm focus:border-[#0069B6] focus:ring-2 focus:ring-[#0095D4] focus:ring-opacity-50 py-1.5" // Redondeado y colores de foco ajustados
+            className="block w-full rounded-xl border-gray-300 shadow-sm focus:border-[#0069B6] focus:ring-2 focus:ring-[#0095D4] focus:ring-opacity-50 py-1.5"
           >
-            {/* Se ha añadido la opción de 10 filas */}
             <option value="10">10</option>
             <option value="20">20</option>
             <option value="50">50</option>
             <option value="100">100</option>
             <option value="1000">1000</option>
           </select>
-          <span>registros por página</span>
         </div>
 
         {/* Navegación de Páginas */}
         <nav
-          className="relative z-0 inline-flex rounded-xl shadow-sm -space-x-px" // Redondeado a rounded-xl
+          className="relative z-0 inline-flex rounded-xl shadow-sm -space-x-px"
           aria-label="Pagination"
         >
           <button
             onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
-            className="relative inline-flex items-center px-3 py-2 rounded-l-xl border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed" // Rounded-l-xl, hover azul claro
+            className="relative inline-flex items-center px-3 py-2 rounded-l-xl border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Anterior
           </button>
@@ -222,8 +211,8 @@ const Table = ({
                 onClick={() => handlePageChange(pageNumber)}
                 className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${
                   pageNumber === currentPage
-                    ? "z-10 bg-[#0095D4] border-[#0095D4] text-white" // Fondo azul vibrante, texto blanco
-                    : "bg-white text-gray-700 hover:bg-blue-50" // Hover azul claro
+                    ? "z-10 bg-[#0095D4] border-[#0095D4] text-white"
+                    : "bg-white text-gray-700 hover:bg-blue-50"
                 }`}
               >
                 {pageNumber}
@@ -240,7 +229,7 @@ const Table = ({
           <button
             onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
-            className="relative inline-flex items-center px-3 py-2 rounded-r-xl border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed" // Rounded-r-xl, hover azul claro
+            className="relative inline-flex items-center px-3 py-2 rounded-r-xl border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Siguiente
           </button>

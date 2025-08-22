@@ -5,7 +5,8 @@ import Dashboard from "./components/dashboard/dashboard"; // Tu componente de Da
 import Menu from "./layout/Menu"; // Tu componente de Menú
 import Header from "./layout/Header"; // Tu componente de Header
 import ReportesAyudas from "./components/report/ReportesAyudas";
-import Beneficiarios from "./components/forms/AyudaForm"; // <--- ¡ESTA ES LA LÍNEA QUE DEBES AJUSTAR!
+import beneficiarios from "./components/beneficiarios/beneficiarios";
+import RegistroSelectores from "./components/selectores/RegistroSelectores"; // <--- ¡ESTA ES LA LÍNEA QUE DEBES AJUSTAR!
 
 // Si tienes un componente para Configuracion, impórtalo también
 // import Configuracion from "./components/Configuracion";
@@ -34,9 +35,11 @@ const App = () => {
       case "dashboard":
         return <Dashboard />;
       case "beneficiarios":
-        return <Beneficiarios />;
+        return <beneficiarios />;
       case "reports":
         return <ReportesAyudas />;
+      case "selectores": // ← Nuevo
+        return <RegistroSelectores />;
       case "configuracion":
         return (
           <div className="p-6 bg-white rounded-xl shadow-lg">
