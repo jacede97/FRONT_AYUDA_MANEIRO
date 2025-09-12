@@ -129,7 +129,7 @@ const ReportesAyudas: React.FC = () => {
 
         // URL de tu API de Django REST Framework
         // URL cambiada para que coincida con la proporcionada por el usuario
-        const API_URL = "http://127.0.0.1:8000/api/";
+        const API_URL = "https://maneiro-api-mem1.onrender.com/api/";
 
         const response = await axios.get<Ayuda[]>(API_URL); // Usa Axios para la petición GET
 
@@ -430,7 +430,7 @@ const ReportesAyudas: React.FC = () => {
             Por favor, asegúrate de que tu servidor de Django esté corriendo y
             que la API esté devolviendo JSON en{" "}
             <code className="font-mono text-sm">
-              http://127.0.0.1:8000/api/
+              https://maneiro-api-mem1.onrender.com/api/
             </code>
           </p>
         </div>
