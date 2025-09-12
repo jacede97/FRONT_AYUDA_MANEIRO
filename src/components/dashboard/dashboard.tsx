@@ -90,7 +90,7 @@ const Dashboard = () => {
   const fetchAyudas = useCallback(async (showAlert = true) => {
     console.log("INTENTANDO: Cargar ayudas desde la API...");
     try {
-      const response = await axios.get("http://127.0.0.1:8000/api/");
+      const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/");
       console.log(
         "ÉXITO: Respuesta de la API (datos crudos de Ayudas):",
         response.data
@@ -173,7 +173,7 @@ const Dashboard = () => {
     try {
       console.log(`Buscando beneficiario para cédula: ${cedula}`);
       const response = await axios.get(
-        `http://127.0.0.1:8000/registro_electoral/buscar/?cedula=${cedula}`
+        `https://maneiro-api-mem1.onrender.com/registro_electoral/buscar/?cedula=${cedula}`
       );
       const data = response.data;
       console.log("Respuesta completa de la API de registro electoral:", data);
@@ -375,7 +375,7 @@ const Dashboard = () => {
     try {
       if (selectedAyuda) {
         await axios.put(
-          `http://127.0.0.1:8000/api/${selectedAyuda.id}/`,
+          `https://maneiro-api-mem1.onrender.com/api/${selectedAyuda.id}/`,
           apiData
         );
         setAlert({
@@ -384,7 +384,7 @@ const Dashboard = () => {
           type: "success",
         });
       } else {
-        await axios.post("http://127.0.0.1:8000/api/", apiData);
+        await axios.post("https://maneiro-api-mem1.onrender.com/api/", apiData);
         setAlert({
           show: true,
           message: "Nueva ayuda registrada exitosamente.",
@@ -451,7 +451,7 @@ const Dashboard = () => {
     if (itemToDelete) {
       try {
         await axios.delete(
-          `http://127.0.0.1:8000/api/${itemToDelete.id}/`
+          `https://maneiro-api-mem1.onrender.com/api/${itemToDelete.id}/`
         );
         setAlert({
           show: true,
