@@ -5,6 +5,7 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 
 // Define la interfaz para la estructura de un reporte de ayuda.
+// ¡ATENCIÓN! La interfaz ha sido actualizada para coincidir con tus datos.
 interface Ayuda {
   id: number;
   codigo: string;
@@ -169,10 +170,10 @@ const ReportesAyudas: React.FC = () => {
   useEffect(() => {
     let currentFiltered = allReportes;
 
-    // --- CORRECCIÓN: Filtrar por el campo 'fecha' en lugar de 'fecha_registro' ---
+    // Filtro por fecha de registro
     if (filterDate) {
       currentFiltered = currentFiltered.filter(
-        (reporte) => reporte.fecha === filterDate // Ahora compara el valor del input con el campo de fecha simple
+        (reporte) => reporte.fecha_registro.startsWith(filterDate) // Compara solo la parte de la fecha (YYYY-MM-DD)
       );
     }
 
@@ -672,6 +673,7 @@ const ReportesAyudas: React.FC = () => {
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-md p-4 border border-blue-100">
+
           {/* Contenedor de la tabla principal */}
           <div className="overflow-x-auto" ref={bottomScrollContainerRef}>
             <table
@@ -834,8 +836,8 @@ const ReportesAyudas: React.FC = () => {
               ) : (
                 <span
                   key={index}
-                  className="relative inline-flex items-center px-4"
-                  >
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700"
+                >
                   {pageNumber}
                 </span>
               )
