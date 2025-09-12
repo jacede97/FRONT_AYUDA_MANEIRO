@@ -5,6 +5,7 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 
 // Define la interfaz para la estructura de un reporte de ayuda.
+// ¡ATENCIÓN! La interfaz ha sido actualizada para coincidir con tus datos.
 interface Ayuda {
   id: number;
   codigo: string;
@@ -16,12 +17,17 @@ interface Ayuda {
   fechaNacimiento: string; // Formato "YYYY-MM-DD"
   municipio: string;
   parroquia: string;
-  sector: string;
+  // Cambiado de 'sector' a 'estructura'
+  estructura: string;
   telefono: string;
+  // Añadido 'calle'
+  calle: string;
   direccion: string;
   institucion: string;
   responsableInstitucion: string;
   tipo: string;
+  // Añadido 'subtipo'
+  subtipo: string;
   estado: string;
   observacion: string;
   fecha_registro: string; // Formato ISO 8601 datetime string
@@ -40,7 +46,8 @@ const ReportesAyudas: React.FC = () => {
 
   // Estados para los filtros
   const [filterDate, setFilterDate] = useState<string>(""); // Para fecha de registro
-  const [filterSector, setFilterSector] = useState<string>("");
+  // Cambiado de 'filterSector' a 'filterEstructura'
+  const [filterEstructura, setFilterEstructura] = useState<string>("");
   const [filterTipo, setFilterTipo] = useState<string>("");
 
   // Estados para la paginación
@@ -121,7 +128,8 @@ const ReportesAyudas: React.FC = () => {
         setError(null); // Limpia cualquier error previo
 
         // URL de tu API de Django REST Framework
-        const API_URL = "https://maneiro-api.onrender.com/api/";
+        // URL cambiada para que coincida con la proporcionada por el usuario
+        const API_URL = "http://127.0.0.1:8000/api/";
 
         const response = await axios.get<Ayuda[]>(API_URL); // Usa Axios para la petición GET
 
@@ -169,10 +177,10 @@ const ReportesAyudas: React.FC = () => {
       );
     }
 
-    // Filtro por sector
-    if (filterSector) {
+    // Filtro por estructura
+    if (filterEstructura) {
       currentFiltered = currentFiltered.filter((reporte) =>
-        reporte.sector.toLowerCase().includes(filterSector.toLowerCase())
+        reporte.estructura.toLowerCase().includes(filterEstructura.toLowerCase())
       );
     }
 
@@ -185,13 +193,13 @@ const ReportesAyudas: React.FC = () => {
 
     setFilteredReportes(currentFiltered);
     setCurrentPage(1); // Reinicia a la primera página con cada cambio de filtro
-  }, [filterDate, filterSector, filterTipo, allReportes]); // Dependencias del efecto de filtrado
+  }, [filterDate, filterEstructura, filterTipo, allReportes]); // Dependencias del efecto de filtrado
 
-  // Obtiene los valores únicos para los filtros de sector y tipo (para los dropdowns)
-  const uniqueSectors = useMemo(() => {
-    const sectors = new Set<string>();
-    allReportes.forEach((reporte) => sectors.add(reporte.sector));
-    return Array.from(sectors).sort();
+  // Obtiene los valores únicos para los filtros de estructura y tipo (para los dropdowns)
+  const uniqueEstructuras = useMemo(() => {
+    const estructuras = new Set<string>();
+    allReportes.forEach((reporte) => estructuras.add(reporte.estructura));
+    return Array.from(estructuras).sort();
   }, [allReportes]);
 
   const uniqueTipos = useMemo(() => {
@@ -338,12 +346,14 @@ const ReportesAyudas: React.FC = () => {
         "Fecha Nacimiento",
         "Municipio",
         "Parroquia",
-        "Sector",
+        "Estructura", // Cambiado de 'Sector'
         "Teléfono",
+        "Calle", // Añadido
         "Dirección",
         "Institución",
         "Responsable Institución",
         "Tipo",
+        "Subtipo", // Añadido
         "Estado",
         "Observación",
         "Fecha Registro",
@@ -360,12 +370,14 @@ const ReportesAyudas: React.FC = () => {
         reporte.fechaNacimiento,
         reporte.municipio,
         reporte.parroquia,
-        reporte.sector,
+        reporte.estructura, // Cambiado de 'sector'
         reporte.telefono,
+        reporte.calle, // Añadido
         reporte.direccion,
         reporte.institucion,
         reporte.responsableInstitucion,
         reporte.tipo,
+        reporte.subtipo, // Añadido
         reporte.estado,
         reporte.observacion,
         new Date(reporte.fecha_registro).toLocaleDateString(),
@@ -418,7 +430,7 @@ const ReportesAyudas: React.FC = () => {
             Por favor, asegúrate de que tu servidor de Django esté corriendo y
             que la API esté devolviendo JSON en{" "}
             <code className="font-mono text-sm">
-              https://maneiro-api.onrender.com/api/ayudas/
+              http://127.0.0.1:8000/api/
             </code>
           </p>
         </div>
@@ -585,24 +597,24 @@ const ReportesAyudas: React.FC = () => {
               className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#0069B6] focus:border-[#0069B6] sm:text-sm bg-white text-gray-900"
             />
           </div>
-          {/* Filtro de Sector */}
+          {/* Filtro de Estructura */}
           <div>
             <label
-              htmlFor="filterSector"
+              htmlFor="filterEstructura"
               className="block text-sm font-medium text-gray-700 mb-2"
             >
-              Sector:
+              Estructura:
             </label>
             <select
-              id="filterSector"
-              value={filterSector}
-              onChange={(e) => setFilterSector(e.target.value)}
+              id="filterEstructura"
+              value={filterEstructura}
+              onChange={(e) => setFilterEstructura(e.target.value)}
               className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#0069B6] focus:border-[#0069B6] sm:text-sm bg-white text-gray-900"
             >
               <option value="">Todos</option>
-              {uniqueSectors.map((sector) => (
-                <option key={sector} value={sector}>
-                  {sector}
+              {uniqueEstructuras.map((estructura) => (
+                <option key={estructura} value={estructura}>
+                  {estructura}
                 </option>
               ))}
             </select>
@@ -661,10 +673,6 @@ const ReportesAyudas: React.FC = () => {
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-md p-4 border border-blue-100">
-          {/* Contenedor de la barra de desplazamiento superior */}
-          <div className="overflow-x-auto" ref={topScrollContainerRef}>
-            <div style={{ height: "1px" }} ref={contentWidthRef}></div>
-          </div>
 
           {/* Contenedor de la tabla principal */}
           <div className="overflow-x-auto" ref={bottomScrollContainerRef}>
@@ -708,7 +716,7 @@ const ReportesAyudas: React.FC = () => {
                     scope="col"
                     className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider"
                   >
-                    Sector
+                    Estructura
                   </th>
                   <th
                     scope="col"
@@ -752,7 +760,7 @@ const ReportesAyudas: React.FC = () => {
                       {reporte.cedula}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                      {reporte.sector}
+                      {reporte.estructura}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                       {reporte.tipo}
@@ -844,7 +852,6 @@ const ReportesAyudas: React.FC = () => {
           </nav>
         </div>
       )}
-      {/* --- Fin Controles de Paginación --- */}
     </div>
   );
 };

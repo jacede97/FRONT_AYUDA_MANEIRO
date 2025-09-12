@@ -93,10 +93,10 @@ const Table = ({
               Beneficiario {renderSortArrow("beneficiario")}
             </th>
             <th
-              onClick={() => requestSort("sector")}
+              onClick={() => requestSort("estructura")}
               className="px-3 py-2 text-center text-xs font-bold text-white uppercase tracking-wider cursor-pointer bg-orange-500 hover:bg-orange-600"
             >
-              Sector {renderSortArrow("sector")}
+              Sector {renderSortArrow("estructura")}
             </th>
             <th
               onClick={() => requestSort("estado")}
@@ -138,7 +138,7 @@ const Table = ({
                 </td>
                 <td className="px-3 py-2 text-sm text-gray-700">
                   <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-[#0069B6]">
-                    {ayuda.sector}
+                    {ayuda.estructura}
                   </span>
                 </td>
                 <td className="px-3 py-2 text-sm">

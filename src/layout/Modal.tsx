@@ -1,5 +1,7 @@
-import React from "react";
-import Alert from "../components/Alert"; // Importa el componente Alert
+import React, { useState, useEffect, useMemo } from "react";
+import Alert from "../components/Alert";
+import Select from "react-select";
+import api from "../lib/axio";
 
 const Modal = ({
   isModalOpen,
@@ -9,27 +11,276 @@ const Modal = ({
   handleInputChange,
   handleSearchBeneficiary,
   selectedAyuda,
-  alert, // Recibe el estado de la alerta del Dashboard
-  setAlert, // Recibe la función para actualizar la alerta del Dashboard
-  modalTitle, // Propiedad para el título del modal
-  modalHeaderColor, // Propiedad para el color del encabezado del modal
-  // Props para el PIN
-  pinRequired, // Booleano: indica si se debe mostrar el campo del PIN
-  pinInput, // String: valor del PIN ingresado
-  handlePinInputChange, // Función: maneja el cambio en el input del PIN
+  alert,
+  setAlert,
+  modalTitle,
+  modalHeaderColor,
+  pinRequired,
+  pinInput,
+  handlePinInputChange,
 }) => {
-  // Si el modal no debe estar abierto, no renderiza nada
-  if (!isModalOpen) {
-    return null;
-  }
+  const [estructuras, setEstructuras] = useState([]);
+  const [calles, setCalles] = useState([]);
+  const [instituciones, setInstituciones] = useState([]);
+  const [loadingEstructuras, setLoadingEstructuras] = useState(false);
+  const [loadingCalles, setLoadingCalles] = useState(false);
+  const [loadingInstituciones, setLoadingInstituciones] = useState(false);
+  const [errorEstructuras, setErrorEstructuras] = useState(null);
+  const [errorCalles, setErrorCalles] = useState(null);
+  const [errorInstituciones, setErrorInstituciones] = useState(null);
+  const [direccionData, setDireccionData] = useState(null);
+  const [ayudasData, setAyudasData] = useState(null);
+
+  // Estados para otros selectores (estáticos)
+  const [municipioOptions] = useState([
+    { value: "", label: "Seleccione un municipio" },
+    { value: "MP. ARISMENDI", label: "MP. ARISMENDI" },
+    { value: "MP. MARIÑO", label: "MP. MARIÑO" },
+    { value: "MP. MANEIRO", label: "MP. MANEIRO" },
+    { value: "MP. GARCIA", label: "MP. GARCIA" },
+    { value: "MP. GOMEZ", label: "MP. GOMEZ" },
+    { value: "MP.ANTOLIN DEL CAMPO", label: "MP.ANTOLIN DEL CAMPO" },
+    { value: "MP. TUBORES", label: "MP. TUBORES" },
+    { value: "MP. DIAZ", label: "MP. DIAZ" },
+    { value: "MP. MARCANO", label: "MP. MARCANO" },
+    { value: "MP.VILLALBA(I.COCHE)", label: "MP.VILLALBA(I.COCHE)" },
+    { value: "MP.PENIN. DE MACANAO", label: "MP.PENIN. DE MACANAO" },
+  ]);
+
+  const [parroquiaOptions] = useState([
+    { value: "", label: "Seleccione una parroquia" },
+    { value: "CM. LA ASUNCION", label: "CM. LA ASUNCION" },
+    { value: "CM. PORLAMAR", label: "CM. PORLAMAR" },
+    { value: "PQ. AGUIRRE", label: "PQ. AGUIRRE" },
+    { value: "CM. PAMPATAR", label: "CM. PAMPATAR" },
+    { value: "CM. VALLE ESP SANTO", label: "CM. VALLE ESP SANTO" },
+    { value: "PQ. FRANCISCO FAJARDO", label: "PQ. FRANCISCO FAJARDO" },
+    { value: "CM. SANTA ANA", label: "CM. SANTA ANA" },
+    { value: "CM.LA PLAZA DE PARAGUACHI", label: "CM.LA PLAZA DE PARAGUACHI" },
+    { value: "CM. PUNTA DE PIEDRAS", label: "CM. PUNTA DE PIEDRAS" },
+    { value: "CM. SAN JUAN BAUTISTA", label: "CM. SAN JUAN BAUTISTA" },
+    { value: "PQ. SUCRE", label: "PQ. SUCRE" },
+    { value: "CM. JUAN GRIEGO", label: "CM. JUAN GRIEGO" },
+    { value: "PQ. BOLIVAR", label: "PQ. BOLIVAR" },
+    { value: "PQ. ADRIAN", label: "PQ. ADRIAN" },
+    { value: "PQ. LOS BARALES", label: "PQ. LOS BARALES" },
+    { value: "CM. SAN PEDRO DE COCHE", label: "CM. SAN PEDRO DE COCHE" },
+    { value: "PQ. MATASIETE", label: "PQ. MATASIETE" },
+    { value: "PQ. ZABALA", label: "PQ. ZABALA" },
+    { value: "PQ. SAN FRANCISCO", label: "PQ. SAN FRANCISCO" },
+    { value: "CM. BOCA DEL RIO", label: "CM. BOCA DEL RIO" },
+    { value: "PQ. GUEVARA", label: "PQ. GUEVARA" },
+    { value: "PQ. VICENTE FUENTES", label: "PQ. VICENTE FUENTES" },
+  ]);
+
+  const [estadoOptions] = useState([
+    { value: "REGISTRADO / RECIBIDO", label: "REGISTRADO / RECIBIDO" },
+    { value: "EN REVISIÓN", label: "EN REVISIÓN" },
+    { value: "OBSERVADO", label: "OBSERVADO" },
+    { value: "VALIDADO / APROBADO", label: "VALIDADO / APROBADO" },
+    { value: "RECHAZADO", label: "RECHAZADO" },
+    { value: "EN PROCESO DE ASIGNACIÓN", label: "EN PROCESO DE ASIGNACIÓN" },
+    { value: "PENDIENTE DE RETIRO", label: "PENDIENTE DE RETIRO" },
+    { value: "ENTREGADA", label: "ENTREGADA" },
+    { value: "NO ENTREGADA", label: "NO ENTREGADA" },
+    { value: "DERIVADO A OTRO MUNICIPIO / INSTITUCIÓN", label: "DERIVADO A OTRO MUNICIPIO / INSTITUCIÓN" },
+    { value: "ARCHIVADO / CERRADO", label: "ARCHIVADO / CERRADO" },
+    { value: "EN ESPERA DE RECURSOS", label: "EN ESPERA DE RECURSOS" },
+    { value: "REASIGNADO", label: "REASIGNADO" },
+    { value: "EN APELACIÓN", label: "EN APELACIÓN" },
+  ]);
+
+  // Cargar los datos de selectores solo una vez, cuando el modal se abre.
+  useEffect(() => {
+    if (isModalOpen) {
+      fetchDireccionData();
+      fetchAyudasCompletas();
+    }
+  }, [isModalOpen]);
+
+  // Modificación 1: Lógica para cargar opciones de Estructuras (igual que tu código original)
+  const fetchDireccionData = async () => {
+    setLoadingEstructuras(true);
+    setErrorEstructuras(null);
+    try {
+      const response = await api.get('/selectores/direccion-completa/');
+      setDireccionData(response.data);
+      const estructurasUnicas = [...new Set(
+        response.data.flatMap(m =>
+          m.parroquias.flatMap(p =>
+            p.bloques.flatMap(b =>
+              b.sectores.flatMap(s =>
+                s.estructuras.map(e => e.estructura)
+              )
+            )
+          )
+        )
+      )].sort();
+      setEstructuras([
+        { value: "", label: "Seleccione una estructura" },
+        ...estructurasUnicas.map(e => ({ value: e, label: e }))
+      ]);
+    } catch (error) {
+      setErrorEstructuras('Error al cargar estructuras');
+      setEstructuras([{ value: "", label: "Error al cargar" }]);
+    } finally {
+      setLoadingEstructuras(false);
+    }
+  };
+
+  // Modificación 2: Lógica para cargar opciones de Instituciones (igual que tu código original)
+  const fetchAyudasCompletas = async () => {
+    setLoadingInstituciones(true);
+    setErrorInstituciones(null);
+    try {
+      const response = await api.get('/gestion_ayudas/ayudas-completas/');
+      setAyudasData(response.data);
+      const insts = response.data.map(i => ({
+        value: String(i.cod_institucion),
+        label: i.nombre
+      })).sort((a, b) => a.label.localeCompare(b.label));
+      setInstituciones([{ value: "", label: "Seleccione..." }, ...insts]);
+    } catch (error) {
+      console.error('Error al cargar ayudas completas:', error);
+      setErrorInstituciones('Error al cargar instituciones');
+      setInstituciones([{ value: "", label: "Error al cargar" }]);
+    } finally {
+      setLoadingInstituciones(false);
+    }
+  };
+
+  // Cargar calles cuando cambie la estructura
+  useEffect(() => {
+    if (!formData.estructura || !direccionData) {
+      setCalles([{ value: "", label: "Seleccione una calle" }]);
+      return;
+    }
+    setLoadingCalles(true);
+    try {
+      const callesUnicas = [...new Set(
+        direccionData.flatMap(m =>
+          m.parroquias.flatMap(p =>
+            p.bloques.flatMap(b =>
+              b.sectores.flatMap(s =>
+                s.estructuras
+                  .filter(e => e.estructura === formData.estructura)
+                  .flatMap(e => e.calles.map(c => c.calle))
+              )
+            )
+          )
+        )
+      )].sort();
+      setCalles([{ value: "", label: "Seleccione una calle" }, ...callesUnicas.map(c => ({ value: c, label: c }))]);
+    } catch (error) {
+      setErrorCalles("Error al cargar calles");
+      setCalles([{ value: "", label: "Error" }]);
+    } finally {
+      setLoadingCalles(false);
+    }
+  }, [formData.estructura, direccionData]);
+
+  // Modificación 3: Lógica para tipos de ayuda
+  const memoizedTiposAyuda = useMemo(() => {
+    if (!formData.institucion || !ayudasData) {
+      return [{ value: "", label: "Seleccione un tipo" }];
+    }
+    const institucion = ayudasData.find(i => String(i.cod_institucion) === formData.institucion);
+    if (!institucion?.tipos_ayuda?.length) {
+      return [{ value: "", label: "No hay tipos disponibles" }];
+    }
+    const tipos = institucion.tipos_ayuda.map(t => ({
+      value: String(t.cod_ayuda),
+      label: t.nombre
+    })).sort((a, b) => a.label.localeCompare(b.label));
+    return [{ value: "", label: "Seleccione un tipo" }, ...tipos];
+  }, [formData.institucion, ayudasData]);
+
+  // Modificación 4: Lógica para subtipos de ayuda
+  const memoizedSubTiposAyuda = useMemo(() => {
+    if (!formData.institucion || !formData.tipo || !ayudasData) {
+      return [{ value: "", label: "Seleccione un subtipo" }];
+    }
+    const institucion = ayudasData.find(i => String(i.cod_institucion) === formData.institucion);
+    const tipo = institucion?.tipos_ayuda?.find(t => String(t.cod_ayuda) === formData.tipo);
+    if (!tipo?.sub_tipos_ayuda?.length) {
+      return [{ value: "", label: "No hay subtipos" }];
+    }
+    const subtipos = tipo.sub_tipos_ayuda.map(st => ({
+      value: String(st.cod_sub_tipo),
+      label: st.nombre
+    })).sort((a, b) => a.label.localeCompare(b.label));
+    return [{ value: "", label: "Seleccione un subtipo" }, ...subtipos];
+  }, [formData.institucion, formData.tipo, ayudasData]);
+
+  // Lógica para resetear inputs dependientes
+  const handleSelectChange = (name, selectedOption) => {
+    const value = selectedOption ? selectedOption.value : "";
+    handleInputChange({ target: { name, value } });
+    if (name === "institucion") {
+      handleInputChange({ target: { name: "tipo", value: "" } });
+      handleInputChange({ target: { name: "subtipo", value: "" } });
+    } else if (name === "tipo") {
+      handleInputChange({ target: { name: "subtipo", value: "" } });
+    }
+  };
+
+  // Estilo personalizado (sin cambios)
+  const customStyles = {
+    control: (provided, state) => ({
+      ...provided,
+      borderColor: state.isFocused ? "#0069B6" : "#D1D5DB",
+      "&:hover": { borderColor: "#0069B6" },
+      borderRadius: "0.75rem",
+      boxShadow: state.isFocused ? "0 0 0 1px #0069B6" : "none",
+      padding: "0.25rem 0",
+    }),
+    singleValue: (provided) => ({ ...provided, color: "#1F2937" }),
+    placeholder: (provided) => ({ ...provided, color: "#9CA3AF" }),
+    option: (provided, state) => ({
+      ...provided,
+      backgroundColor: state.isSelected ? "#E5F0F8" : provided.backgroundColor,
+      color: "#1F2937",
+    }),
+    menu: (provided) => ({ ...provided, zIndex: 9999 }),
+  };
+
+  // Función para obtener el objeto de opción para react-select
+  const getSelectedOption = (options, value) => {
+    // Si el valor está vacío, regresamos null para que el selector se muestre vacío
+    if (!value) return null;
+    // Buscamos la opción por su valor
+    return options.find(opt => opt.value === value) || null;
+  };
+
+  // Validación local del teléfono (sin cambios)
+  const validatePhone = (value) => {
+    if (value && (!/^\d{10}$/.test(value) || value.length !== 10)) {
+      setAlert({
+        show: true,
+        message: "El teléfono debe tener exactamente 10 dígitos numéricos.",
+        type: "error",
+      });
+      return false;
+    }
+    setAlert({ show: false, message: "", type: "" });
+    return true;
+  };
+
+  const handlePhoneBlur = (e) => {
+    const { value } = e.target;
+    validatePhone(value);
+  };
+  
+  const handleInputGenericChange = (e) => {
+    handleInputChange(e);
+  };
+
+  if (!isModalOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50 font-sans">
       <div className="relative p-0 bg-white rounded-2xl shadow-xl max-w-2xl mx-auto transform transition-all sm:w-full">
-        {/* Encabezado del Modal */}
-        <div
-          className={`p-4 rounded-t-2xl text-white flex justify-between items-center ${modalHeaderColor}`}
-        >
+        <div className={`p-4 rounded-t-2xl text-white flex justify-between items-center ${modalHeaderColor}`}>
           <h2 className="text-xl font-bold">{modalTitle}</h2>
           <button
             onClick={closeModal}
@@ -52,9 +303,7 @@ const Modal = ({
           </button>
         </div>
 
-        {/* Contenido del Modal */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-          {/* Alerta */}
           {alert.show && (
             <Alert
               message={alert.message}
@@ -75,7 +324,7 @@ const Modal = ({
                     type="text"
                     name="cedula"
                     value={formData.cedula}
-                    onChange={handleInputChange}
+                    onChange={handleInputGenericChange}
                     required
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-l-xl focus:border-[#0069B6] transition-all"
                     placeholder="V-12345678"
@@ -115,7 +364,7 @@ const Modal = ({
                   type="text"
                   name="beneficiario"
                   value={formData.beneficiario}
-                  onChange={handleInputChange}
+                  onChange={handleInputGenericChange}
                   required
                   disabled={!!formData.beneficiario}
                   title={
@@ -140,7 +389,7 @@ const Modal = ({
                 <select
                   name="nacionalidad"
                   value={formData.nacionalidad}
-                  onChange={handleInputChange}
+                  onChange={handleInputGenericChange}
                   required
                   disabled={!!formData.nacionalidad}
                   title={
@@ -168,7 +417,7 @@ const Modal = ({
                 <select
                   name="sexo"
                   value={formData.sexo}
-                  onChange={handleInputChange}
+                  onChange={handleInputGenericChange}
                   required
                   disabled={!!formData.sexo}
                   title={
@@ -186,7 +435,7 @@ const Modal = ({
                 </select>
               </div>
 
-              {/* Fecha de Nacimiento */}
+              {/* Fecha de Nacimiento y Teléfono */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Fecha de Nacimiento
@@ -195,7 +444,7 @@ const Modal = ({
                   type="date"
                   name="fechaNacimiento"
                   value={formData.fechaNacimiento}
-                  onChange={handleInputChange}
+                  onChange={handleInputGenericChange}
                   required
                   disabled={!!formData.fechaNacimiento}
                   title={
@@ -210,191 +459,6 @@ const Modal = ({
                   }`}
                 />
               </div>
-
-              {/* Municipio */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Municipio
-                </label>
-                <select
-                  name="municipio"
-                  value={formData.municipio}
-                  onChange={handleInputChange}
-                  required
-                  disabled={!!formData.municipio}
-                  title={
-                    formData.municipio
-                      ? "Este campo se llenó automáticamente y no puede ser modificado."
-                      : ""
-                  }
-                  className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.municipio ? "bg-gray-100 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <option value="">Seleccione un municipio</option>
-                  <option value="MP. ARISMENDI">MP. ARISMENDI</option>
-                  <option value="MP. MARIÑO">MP. MARIÑO</option>
-                  <option value="MP. MANEIRO">MP. MANEIRO</option>
-                  <option value="MP. GARCIA">MP. GARCIA</option>
-                  <option value="MP. GOMEZ">MP. GOMEZ</option>
-                  <option value="MP.ANTOLIN DEL CAMPO">
-                    MP.ANTOLIN DEL CAMPO
-                  </option>
-                  <option value="MP. TUBORES">MP. TUBORES</option>
-                  <option value="MP. DIAZ">MP. DIAZ</option>
-                  <option value="MP. MARCANO">MP. MARCANO</option>
-                  <option value="MP.VILLALBA(I.COCHE)">
-                    MP.VILLALBA(I.COCHE)
-                  </option>
-                  <option value="MP.PENIN. DE MACANAO">
-                    MP.PENIN. DE MACANAO
-                  </option>
-                </select>
-              </div>
-
-              {/* Parroquia */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Parroquia
-                </label>
-                <select
-                  name="parroquia"
-                  value={formData.parroquia}
-                  onChange={handleInputChange}
-                  required
-                  disabled={!!formData.parroquia}
-                  title={
-                    formData.parroquia
-                      ? "Este campo se llenó automáticamente y no puede ser modificado."
-                      : ""
-                  }
-                  className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.parroquia ? "bg-gray-100 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <option value="">Seleccione una parroquia</option>
-                  <option value="CM. LA ASUNCION">CM. LA ASUNCION</option>
-                  <option value="CM. PORLAMAR">CM. PORLAMAR</option>
-                  <option value="PQ. AGUIRRE">PQ. AGUIRRE</option>
-                  <option value="CM. PAMPATAR">CM. PAMPATAR</option>
-                  <option value="CM. VALLE ESP SANTO">
-                    CM. VALLE ESP SANTO
-                  </option>
-                  <option value="PQ. FRANCISCO FAJARDO">
-                    PQ. FRANCISCO FAJARDO
-                  </option>
-                  <option value="CM. SANTA ANA">CM. SANTA ANA</option>
-                  <option value="CM.LA PLAZA DE PARAGUACHI">
-                    CM.LA PLAZA DE PARAGUACHI
-                  </option>
-                  <option value="CM. PUNTA DE PIEDRAS">
-                    CM. PUNTA DE PIEDRAS
-                  </option>
-                  <option value="CM. SAN JUAN BAUTISTA">
-                    CM. SAN JUAN BAUTISTA
-                  </option>
-                  <option value="PQ. SUCRE">PQ. SUCRE</option>
-                  <option value="CM. JUAN GRIEGO">CM. JUAN GRIEGO</option>
-                  <option value="PQ. BOLIVAR">PQ. BOLIVAR</option>
-                  <option value="PQ. ADRIAN">PQ. ADRIAN</option>
-                  <option value="PQ. LOS BARALES">PQ. LOS BARALES</option>
-                  <option value="CM. SAN PEDRO DE COCHE">
-                    CM. SAN PEDRO DE COCHE
-                  </option>
-                  <option value="PQ. MATASIETE">PQ. MATASIETE</option>
-                  <option value="PQ. ZABALA">PQ. ZABALA</option>
-                  <option value="PQ. SAN FRANCISCO">PQ. SAN FRANCISCO</option>
-                  <option value="CM. BOCA DEL RIO">CM. BOCA DEL RIO</option>
-                  <option value="PQ. GUEVARA">PQ. GUEVARA</option>
-                  <option value="PQ. VICENTE FUENTES">
-                    PQ. VICENTE FUENTES
-                  </option>
-                </select>
-              </div>
-
-              {/* Sector */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Sector
-                </label>
-                <select
-                  name="sector"
-                  value={formData.sector}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
-                >
-                  <option value="">Seleccione un sector</option>
-                  {[
-                    "3 DE MAYO",
-                    "AGUA DE VACA",
-                    "APOSTADERO",
-                    "BELEN",
-                    "BRISAS DEL MAR",
-                    "BUEN VIAJE",
-                    "CAMPEARE",
-                    "CASTO LOPEZ",
-                    "CLL LAS FLORES",
-                    "CURIEPE",
-                    "EL CEMENTERIO",
-                    "EL CERRO",
-                    "EL HATO",
-                    "EL PLATANAL",
-                    "EL POCITO",
-                    "EL POTRERO",
-                    "EL REALENGO",
-                    "EL TAMARINDO",
-                    "EL TROCADERO",
-                    "EL VIGIA",
-                    "FRATERNIDAD",
-                    "JORGE COLL",
-                    "JOVITO LOPEZ",
-                    "JOVITO VILLALBA",
-                    "JULIO LUIS BEAUFOND",
-                    "LA ANTENA",
-                    "LA CARANTA",
-                    "LA CIUDADELA DEL MAR",
-                    "LA FUNDACION",
-                    "LA GUAMACHERA",
-                    "LA OTRA SABANA",
-                    "LA PLAYA",
-                    "LA PLAZA",
-                    "LA SALINA",
-                    "LAS ACACIAS",
-                    "LAS BALBINAS",
-                    "LAS CASITAS",
-                    "LIBERTAD OESTE",
-                    "LOMAS DE LA CARANTA",
-                    "LOS CHACOS",
-                    "LOS CHAURE",
-                    "LOS OLIVOS",
-                    "LOS ROBLES",
-                    "MORENO",
-                    "MUNDO NUEVO",
-                    "NUEVA CADIZ",
-                    "OTRA SABANA",
-                    "PEÑA BLANCA",
-                    "PUNTA BERGANTIN",
-                    "PUNTA BRAVA",
-                    "POLANCO",
-                    "PLATANAL",
-                    "PUERTO MORENO",
-                    "SALAZAR GARCIA",
-                    "SAN FERNANDO",
-                    "SAN JUDAS TADEO",
-                    "SAN LORENZO",
-                    "SAN MARTIN",
-                    "SIN UBICAR",
-                    "TAMARINDO",
-                  ].map((sector) => (
-                    <option key={sector} value={sector}>
-                      {sector}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Teléfono */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Teléfono
@@ -403,11 +467,101 @@ const Modal = ({
                   type="text"
                   name="telefono"
                   value={formData.telefono}
-                  onChange={handleInputChange}
-                  required
+                  onChange={handleInputGenericChange}
+                  onBlur={handlePhoneBlur}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
-                  placeholder="0414-1234567"
+                  placeholder="04141234567"
                 />
+              </div>
+
+              {/* Municipio */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Municipio
+                </label>
+                <Select
+                  name="municipio"
+                  options={municipioOptions}
+                  value={getSelectedOption(municipioOptions, formData.municipio)}
+                  onChange={(selectedOption) =>
+                    handleSelectChange("municipio", selectedOption)
+                  }
+                  isDisabled={!!formData.municipio}
+                  styles={customStyles}
+                  placeholder="Seleccione un municipio"
+                />
+              </div>
+
+              {/* Parroquia */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Parroquia
+                </label>
+                <Select
+                  name="parroquia"
+                  options={parroquiaOptions}
+                  value={getSelectedOption(parroquiaOptions, formData.parroquia)}
+                  onChange={(selectedOption) =>
+                    handleSelectChange("parroquia", selectedOption)
+                  }
+                  isDisabled={!!formData.parroquia}
+                  styles={customStyles}
+                  placeholder="Seleccione una parroquia"
+                />
+              </div>
+
+              {/* Estructura */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Estructura
+                </label>
+                {loadingEstructuras ? (
+                  <div className="px-4 py-3 border border-gray-300 rounded-xl text-center">
+                    <span className="text-gray-500">Cargando estructuras...</span>
+                  </div>
+                ) : errorEstructuras ? (
+                  <div className="px-4 py-3 border border-red-300 rounded-xl bg-red-50">
+                    <span className="text-red-700 text-sm">{errorEstructuras}</span>
+                  </div>
+                ) : (
+                  <Select
+                    name="estructura"
+                    options={estructuras}
+                    value={getSelectedOption(estructuras, formData.estructura)}
+                    onChange={(selectedOption) =>
+                      handleSelectChange("estructura", selectedOption)
+                    }
+                    styles={customStyles}
+                    placeholder="Seleccione una estructura"
+                  />
+                )}
+              </div>
+
+              {/* Calle */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Calle
+                </label>
+                {loadingCalles ? (
+                  <div className="px-4 py-3 border border-gray-300 rounded-xl text-center">
+                    <span className="text-gray-500">Cargando calles...</span>
+                  </div>
+                ) : errorCalles ? (
+                  <div className="px-4 py-3 border border-red-300 rounded-xl bg-red-50">
+                    <span className="text-red-700 text-sm">{errorCalles}</span>
+                  </div>
+                ) : (
+                  <Select
+                    name="calle"
+                    options={calles}
+                    value={getSelectedOption(calles, formData.calle)}
+                    onChange={(selectedOption) =>
+                      handleSelectChange("calle", selectedOption)
+                    }
+                    styles={customStyles}
+                    placeholder="Seleccione una calle"
+                  />
+                )}
               </div>
 
               {/* Dirección */}
@@ -419,30 +573,76 @@ const Modal = ({
                   type="text"
                   name="direccion"
                   value={formData.direccion}
-                  onChange={handleInputChange}
-                  required
+                  onChange={handleInputGenericChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
                   placeholder="Dirección completa"
                 />
               </div>
 
               {/* Institución */}
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Institución
                 </label>
-                <select
-                  name="institucion"
-                  value={formData.institucion}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
-                >
-                  <option value="">Seleccione una institución</option>
-                  <option value="FUNDACION">Fundación</option>
-                  <option value="DESPACHO">Despacho</option>
-                </select>
+                {loadingInstituciones ? (
+                  <div className="px-4 py-3 border border-gray-300 rounded-xl text-center">
+                    <span className="text-gray-500">Cargando instituciones...</span>
+                  </div>
+                ) : errorInstituciones ? (
+                  <div className="px-4 py-3 border border-red-300 rounded-xl bg-red-50">
+                    <span className="text-red-700 text-sm">{errorInstituciones}</span>
+                  </div>
+                ) : (
+                  <Select
+                    name="institucion"
+                    options={instituciones}
+                    value={getSelectedOption(instituciones, formData.institucion)}
+                    onChange={(selectedOption) =>
+                      handleSelectChange("institucion", selectedOption)
+                    }
+                    styles={customStyles}
+                    placeholder="Seleccione una institución"
+                    isDisabled={loadingInstituciones}
+                  />
+                )}
+              </div>
+
+              {/* Tipo de Ayuda */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de Ayuda
+                </label>
+                <Select
+                  key={`tipo-${formData.institucion}`}
+                  name="tipo"
+                  options={memoizedTiposAyuda}
+                  value={getSelectedOption(memoizedTiposAyuda, formData.tipo)}
+                  onChange={(selectedOption) =>
+                    handleSelectChange("tipo", selectedOption)
+                  }
+                  styles={customStyles}
+                  placeholder="Seleccione un tipo"
+                  isDisabled={loadingInstituciones || !formData.institucion}
+                />
+              </div>
+
+              {/* SubTipo de Ayuda */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  SubTipo de Ayuda
+                </label>
+                <Select
+                  key={`subtipo-${formData.tipo}`}
+                  name="subtipo"
+                  options={memoizedSubTiposAyuda}
+                  value={getSelectedOption(memoizedSubTiposAyuda, formData.subtipo)}
+                  onChange={(selectedOption) =>
+                    handleSelectChange("subtipo", selectedOption)
+                  }
+                  styles={customStyles}
+                  placeholder="Seleccione un subtipo"
+                  isDisabled={!formData.tipo}
+                />
               </div>
 
               {/* Responsable Social */}
@@ -454,46 +654,10 @@ const Modal = ({
                   type="text"
                   name="responsableInstitucion"
                   value={formData.responsableInstitucion}
-                  onChange={handleInputChange}
-                  required
+                  onChange={handleInputGenericChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
                   placeholder="Nombre del responsable"
                 />
-              </div>
-
-              {/* Tipo de Solicitud */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tipo de Solicitud
-                </label>
-                <select
-                  name="tipo"
-                  value={formData.tipo}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
-                >
-                  <option value="">Seleccione un tipo</option>
-                  {[
-                    "AYUDA ECONOMICA",
-                    "AYUDA MEDICA",
-                    "AYUDAS TECNICAS",
-                    "CEMENTO",
-                    "LAMINAS",
-                    "MANTO",
-                    "MANTO FLEX",
-                    "MEDICAMENTOS",
-                    "MATERIALES DE CONSTRUCCION",
-                    "POR INFORMACION",
-                    "TANQUE",
-                  ]
-                    .sort()
-                    .map((tipo) => (
-                      <option key={tipo} value={tipo}>
-                        {tipo}
-                      </option>
-                    ))}
-                </select>
               </div>
 
               {/* Estado */}
@@ -501,42 +665,16 @@ const Modal = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Estado
                 </label>
-                <select
+                <Select
                   name="estado"
-                  value={formData.estado}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
-                >
-                  <option value="REGISTRADO / RECIBIDO">
-                    REGISTRADO / RECIBIDO
-                  </option>
-                  <option value="EN REVISIÓN">EN REVISIÓN</option>
-                  <option value="OBSERVADO">OBSERVADO</option>
-                  <option value="VALIDADO / APROBADO">
-                    VALIDADO / APROBADO
-                  </option>
-                  <option value="RECHAZADO">RECHAZADO</option>
-                  <option value="EN PROCESO DE ASIGNACIÓN">
-                    EN PROCESO DE ASIGNACIÓN
-                  </option>
-                  <option value="PENDIENTE DE RETIRO">
-                    PENDIENTE DE RETIRO
-                  </option>
-                  <option value="ENTREGADA">ENTREGADA</option>
-                  <option value="NO ENTREGADA">NO ENTREGADA</option>
-                  <option value="DERIVADO A OTRO MUNICIPIO / INSTITUCIÓN">
-                    DERIVADO A OTRO MUNICIPIO / INSTITUCIÓN
-                  </option>
-                  <option value="ARCHIVADO / CERRADO">
-                    ARCHIVADO / CERRADO
-                  </option>
-                  <option value="EN ESPERA DE RECURSOS">
-                    EN ESPERA DE RECURSOS
-                  </option>
-                  <option value="REASIGNADO">REASIGNADO</option>
-                  <option value="EN APELACIÓN">EN APELACIÓN</option>
-                </select>
+                  options={estadoOptions}
+                  value={getSelectedOption(estadoOptions, formData.estado)}
+                  onChange={(selectedOption) =>
+                    handleSelectChange("estado", selectedOption)
+                  }
+                  styles={customStyles}
+                  placeholder="Seleccione un estado"
+                />
               </div>
             </div>
 
@@ -548,7 +686,7 @@ const Modal = ({
               <textarea
                 name="observacion"
                 value={formData.observacion}
-                onChange={handleInputChange}
+                onChange={handleInputGenericChange}
                 rows="4"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
                 placeholder="Describa detalladamente la situación, necesidades y motivos de la solicitud..."

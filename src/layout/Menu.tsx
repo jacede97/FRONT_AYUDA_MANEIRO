@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
   return (
@@ -123,8 +123,6 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               <span>Reportes</span>
             </button>
 
-<<<<<<< HEAD
-            {/* ✅ NUEVO: Botón "Registro de Selectores" */}
             <button
               onClick={() => setCurrentView("selectores")}
               className="flex items-center px-3 py-2 text-black hover:bg-blue-100 hover:text-blue-700 rounded-lg font-medium w-full text-left"
@@ -145,8 +143,22 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               <span>Registro de Selectores</span>
             </button>
 
-=======
->>>>>>> 6c611e1bef9cfe2a0161dfecfdcd9db173bcc540
+            {/* ✅ Nuevo Botón para Registro de Tipos de Ayuda */}
+            <button
+              onClick={() => setCurrentView("adminAyudas")}
+              className="flex items-center px-3 py-2 text-black hover:bg-blue-100 hover:text-blue-700 rounded-lg font-medium w-full text-left"
+            >
+              <svg 
+                className="w-5 h-5 mr-2 text-gray-600" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 3h3m-6 3h6"/>
+              </svg>
+              <span>Registro de Tipos de Ayuda</span>
+            </button>
+
             <button
               onClick={() => setCurrentView("configuracion")}
               className="flex items-center px-3 py-2 text-black hover:bg-blue-100 hover:text-blue-700 rounded-lg font-medium w-full text-left"
@@ -171,6 +183,25 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
                 />
               </svg>
               <span>Configuración</span>
+            </button>
+            <button
+              onClick={() => setCurrentView("usuario")}
+              className="flex items-center px-3 py-2 text-black hover:bg-blue-100 hover:text-blue-700 rounded-lg font-medium w-full text-left"
+            >
+              <svg
+                className="w-5 h-5 mr-2 text-gray-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                />
+              </svg>
+              <span>Registro de Usuario</span>
             </button>
 
             <div className="border-t border-gray-300 mt-4 pt-4">
@@ -220,10 +251,6 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               </svg>
             </button>
 
-<<<<<<< HEAD
-=======
-            {/* ✅ CORREGIDO: solo ícono, sin texto */}
->>>>>>> 6c611e1bef9cfe2a0161dfecfdcd9db173bcc540
             <button
               onClick={() => setCurrentView("beneficiarios")}
               className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
@@ -264,8 +291,7 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
               </svg>
             </button>
 
-<<<<<<< HEAD
-            {/* ✅ NUEVO: Ícono para Registro de Selectores (versión colapsada) */}
+            {/* Ícono para Registro de Selectores (versión colapsada) */}
             <button
               onClick={() => setCurrentView("selectores")}
               className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
@@ -285,9 +311,23 @@ const Menu = ({ isMenuOpen, toggleMenu, handleLogout, setCurrentView }) => {
                 />
               </svg>
             </button>
+            
+            {/* ✅ Nuevo Ícono para Registro de Tipos de Ayuda (versión colapsada) */}
+            <button
+              onClick={() => setCurrentView("adminAyudas")}
+              className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"
+              title="Registro de Tipos de Ayuda"
+            >
+              <svg 
+                className="w-6 h-6" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 3h3m-6 3h6"/>
+              </svg>
+            </button>
 
-=======
->>>>>>> 6c611e1bef9cfe2a0161dfecfdcd9db173bcc540
             <button
               onClick={() => setCurrentView("configuracion")}
               className="p-2 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors"

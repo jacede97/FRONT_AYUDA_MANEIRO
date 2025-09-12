@@ -5,19 +5,19 @@ import Cookies from 'universal-cookie';
 
 const cookies = new Cookies();
 
-const RegistroSelectores = () => {
-  const [activeTab, setActiveTab] = useState('bloque');
+const AdminAyudas = () => {
+  const [activeTab, setActiveTab] = useState('institucion'); // Primera pestaña
   const [form, setForm] = useState({ nombre: '', extra: '' });
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const [parroquias, setParroquias] = useState({});
-  const [bloques, setBloques] = useState({});
-  const [sectores, setSectores] = useState({});
-  const [estructuras, setEstructuras] = useState({});
-  const [data, setData] = useState([]);
+  // === Mapas para nombres de relaciones ===
+  const [instituciones, setInstituciones] = useState({});
+  const [tiposAyuda, setTiposAyuda] = useState({});
+  const [subTiposAyuda, setSubTiposAyuda] = useState({});
+  const [data, setData] = useState([]); // Datos principales de la tabla
 
   // === Efecto para gestionar la visibilidad de los mensajes ===
   useEffect(() => {
@@ -31,108 +31,87 @@ const RegistroSelectores = () => {
     }
   }, [success, error]); // Se ejecuta cada vez que 'success' o 'error' cambian
 
-  // === Cargar relaciones (parroquias, bloques, sectores, estructuras) ===
+  // === Cargar relaciones (instituciones, tipos de ayuda, subtipos de ayuda) ===
   useEffect(() => {
     const cargarRelaciones = async () => {
       try {
-        const resParroquias = await api.get('/selectores/parroquias/municipio/4/');
-        const parroquiasMap = {};
-        resParroquias.data.forEach(p => {
-          parroquiasMap[p.cod_parroquia] = p;
+        // Cargar Instituciones
+        const resInstituciones = await api.get('/gestion_ayudas/instituciones/'); // ✅ Prefijo /api/ eliminado
+        const institucionesMap = {};
+        resInstituciones.data.forEach(inst => {
+          institucionesMap[inst.cod_institucion] = inst;
         });
-        setParroquias(parroquiasMap);
+        setInstituciones(institucionesMap);
 
-        const resBloques = await api.get('/selectores/bloques/');
-        const bloquesMap = {};
-        resBloques.data.forEach(b => {
-          bloquesMap[b.cod_bloque] = b;
+        // Cargar Tipos de Ayuda
+        const resTiposAyuda = await api.get('/gestion_ayudas/tipos/'); // ✅ Prefijo /api/ eliminado
+        const tiposAyudaMap = {};
+        resTiposAyuda.data.forEach(tipo => {
+          tiposAyudaMap[tipo.cod_ayuda] = tipo;
         });
-        setBloques(bloquesMap);
+        setTiposAyuda(tiposAyudaMap);
 
-        const resSectores = await api.get('/selectores/sectores/');
-        const sectoresMap = {};
-        resSectores.data.forEach(s => {
-          sectoresMap[s.cod_sector] = s;
+        // Cargar Sub Tipos de Ayuda
+        const resSubTiposAyuda = await api.get('/gestion_ayudas/subtipos/'); // ✅ Prefijo /api/ eliminado
+        const subTiposAyudaMap = {};
+        resSubTiposAyuda.data.forEach(subtipo => {
+          subTiposAyudaMap[subtipo.cod_sub_tipo] = subtipo;
         });
-        setSectores(sectoresMap);
+        setSubTiposAyuda(subTiposAyudaMap);
 
-        const resEstructuras = await api.get('/selectores/estructuras/');
-        const estructurasMap = {};
-        resEstructuras.data.forEach(e => {
-          estructurasMap[e.cod_estructura] = e;
-        });
-        setEstructuras(estructurasMap);
       } catch (err) {
-        console.error('Error cargando relaciones', err);
-        setError('Error al cargar relaciones. Verifica el backend.'); // Mostrar error de carga de relaciones
+        console.error('Error cargando relaciones de ayuda', err);
+        setError('Error al cargar las relaciones de ayuda. Verifica el backend.');
       }
     };
 
     cargarRelaciones();
   }, []);
 
-  // === Cargar datos según la pestaña ===
+  // === Cargar datos según la pestaña activa ===
   useEffect(() => {
     const cargarDatos = async () => {
       setLoading(true);
       try {
         let res;
         switch (activeTab) {
-          case 'bloque':
-            res = await api.get('/selectores/bloques/');
-            setData(res.data.filter(b => [9, 10].includes(b.parroquia)));
+          case 'institucion':
+            res = await api.get('/gestion_ayudas/instituciones/'); // ✅ Prefijo /api/ eliminado
+            setData(res.data);
             break;
-
-          case 'sector':
-            res = await api.get('/selectores/sectores/');
-            setData(res.data.filter(s => [9, 10].includes(s.bloque)));
+          case 'tipo_ayuda':
+            res = await api.get('/gestion_ayudas/tipos/'); // ✅ Prefijo /api/ eliminado
+            setData(res.data);
             break;
-
-          case 'estructura':
-            res = await api.get('/selectores/estructuras/');
-            const estructurasFiltradas = res.data.filter(e => {
-              const sector = sectores[e.sector];
-              return sector && [9, 10].includes(sector.bloque);
-            });
-            setData(estructurasFiltradas);
+          case 'sub_tipo_ayuda':
+            res = await api.get('/gestion_ayudas/subtipos/'); // ✅ Prefijo /api/ eliminado
+            setData(res.data);
             break;
-
-          case 'calle':
-            res = await api.get('/selectores/calles/');
-            const callesFiltradas = res.data.filter(c => {
-              const estructura = estructuras[c.estructura];
-              const sector = estructura ? sectores[estructura.sector] : null;
-              return sector && [9, 10].includes(sector.bloque);
-            });
-            setData(callesFiltradas);
-            break;
-
           default:
             setData([]);
         }
-        // No borramos el error aquí para que el timer lo gestione
+        setError(''); 
       } catch (err) {
-        console.error('Error al cargar datos:', err);
-        setError('Error al cargar datos. Verifica el backend y las dependencias de los filtros.');
+        console.error('Error al cargar datos de ayuda:', err);
+        setError('Error al cargar datos de ayuda. Verifica el backend y las dependencias.');
       } finally {
         setLoading(false);
       }
     };
+    cargarDatos();
+  }, [activeTab, instituciones, tiposAyuda, subTiposAyuda]); // Dependencias para recargar si cambian las relaciones
 
-    if (Object.keys(sectores).length > 0 && Object.keys(estructuras).length > 0 || activeTab === 'bloque' || activeTab === 'sector') {
-      cargarDatos();
-    }
-  }, [activeTab, sectores, estructuras, bloques]);
-
+  // === Manejar cambios en el formulario ===
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  // === Enviar formulario (crear o editar) ===
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(''); // Limpiar errores previos al intentar guardar
-    setSuccess(''); // Limpiar éxitos previos al intentar guardar
+    setError('');
+    setSuccess('');
     setLoading(true);
 
     if (!form.nombre.trim()) {
@@ -141,7 +120,8 @@ const RegistroSelectores = () => {
       return;
     }
 
-    if (!form.extra) {
+    // Validación para el campo extra (relación) si no es la pestaña de institución
+    if (activeTab !== 'institucion' && !form.extra) {
       setError('Debes seleccionar una relación.');
       setLoading(false);
       return;
@@ -150,29 +130,20 @@ const RegistroSelectores = () => {
     try {
       const payload = {
         nombre: form.nombre.trim(),
-        [activeTab === 'bloque' ? 'parroquia' : 
-         activeTab === 'sector' ? 'bloque' :
-         activeTab === 'estructura' ? 'sector' : 'estructura']: parseInt(form.extra)
       };
 
       let endpoint = '';
       let method = 'post';
 
-      switch (activeTab) {
-        case 'bloque':
-          endpoint = '/selectores/bloques/';
-          break;
-        case 'sector':
-          endpoint = '/selectores/sectores/';
-          break;
-        case 'estructura':
-          endpoint = '/selectores/estructuras/';
-          break;
-        case 'calle':
-          endpoint = '/selectores/calles/';
-          break;
-        default:
-          return;
+      // Añadir la relación si no es institución
+      if (activeTab === 'tipo_ayuda') {
+        payload.institucion = parseInt(form.extra); // Asume que 'extra' es cod_institucion
+        endpoint = '/gestion_ayudas/tipos/'; // ✅ Prefijo /api/ eliminado
+      } else if (activeTab === 'sub_tipo_ayuda') {
+        payload.tipo_ayuda = parseInt(form.extra); // Asume que 'extra' es cod_ayuda
+        endpoint = '/gestion_ayudas/subtipos/'; // ✅ Prefijo /api/ eliminado
+      } else { // institucion
+        endpoint = '/gestion_ayudas/instituciones/'; // ✅ Prefijo /api/ eliminado
       }
 
       if (editingId) {
@@ -186,7 +157,7 @@ const RegistroSelectores = () => {
         },
       });
 
-      setSuccess(`✅ ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} guardado correctamente.`);
+      setSuccess(`✅ ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('_', ' ')} guardado correctamente.`);
       resetForm();
       refrescarDatos();
     } catch (err) {
@@ -197,22 +168,19 @@ const RegistroSelectores = () => {
           errorMsg = Object.entries(errorData)
               .map(([key, value]) => {
                   const fieldName = {
-                      'cod_bloque': 'Código del Bloque',
-                      'cod_sector': 'Código del Sector',
-                      'cod_estructura': 'Código de la Estructura',
-                      'cod_calle': 'Código de la Calle',
+                      'cod_institucion': 'Código de la Institución',
+                      'cod_ayuda': 'Código del Tipo de Ayuda',
+                      'cod_sub_tipo': 'Código del Sub Tipo',
                       'nombre': 'Nombre',
-                      'parroquia': 'Parroquia',
-                      'bloque': 'Bloque',
-                      'sector': 'Sector',
-                      'estructura': 'Estructura'
+                      'institucion': 'Institución',
+                      'tipo_ayuda': 'Tipo de Ayuda',
                   }[key] || key;
                   return `${fieldName}: ${Array.isArray(value) ? value.join(', ') : value}`;
               })
               .join('; ');
       } else if (typeof errorData === 'string') {
           errorMsg = errorData;
-      } else if (err.message) { // Capturar errores de red o genéricos de Axios
+      } else if (err.message) {
           errorMsg = err.message;
       }
 
@@ -222,49 +190,44 @@ const RegistroSelectores = () => {
     }
   };
 
+  // === Editar registro ===
   const handleEdit = (item) => {
-    const id = item.cod_bloque || item.cod_sector || item.cod_estructura || item.cod_calle;
-    const nombre = item.nombre; 
-
+    let id = null;
     let relacionId = '';
-    switch (activeTab) {
-      case 'bloque':
-        relacionId = item.parroquia?.toString() || '';
-        break;
-      case 'sector':
-        relacionId = item.bloque?.toString() || '';
-        break;
-      case 'estructura':
-        relacionId = item.sector?.toString() || '';
-        break;
-      case 'calle':
-        relacionId = item.estructura?.toString() || '';
-        break;
+
+    if (activeTab === 'institucion') {
+      id = item.cod_institucion;
+    } else if (activeTab === 'tipo_ayuda') {
+      id = item.cod_ayuda;
+      relacionId = item.institucion?.toString() || '';
+    } else if (activeTab === 'sub_tipo_ayuda') {
+      id = item.cod_sub_tipo;
+      relacionId = item.tipo_ayuda?.toString() || '';
     }
 
     setEditingId(id);
     setForm({
-      nombre: nombre,
+      nombre: item.nombre,
       extra: relacionId,
     });
-    setError(''); // Limpiar errores al iniciar la edición
-    setSuccess(''); // Limpiar éxitos al iniciar la edición
+    setError('');
+    setSuccess('');
   };
 
+  // === Eliminar registro ===
   const handleDelete = async (id, tipo) => {
     if (!window.confirm('¿Estás seguro de eliminar este registro? Esto eliminará todos los registros dependientes.')) return;
 
-    setError(''); // Limpiar errores previos al intentar eliminar
-    setSuccess(''); // Limpiar éxitos previos al intentar eliminar
+    setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
       let endpoint = '';
       switch (tipo) {
-        case 'bloque': endpoint = `/selectores/bloques/${id}/`; break;
-        case 'sector': endpoint = `/selectores/sectores/${id}/`; break;
-        case 'estructura': endpoint = `/selectores/estructuras/${id}/`; break;
-        case 'calle': endpoint = `/selectores/calles/${id}/`; break;
+        case 'institucion': endpoint = `/gestion_ayudas/instituciones/${id}/`; break; // ✅ Prefijo /api/ eliminado
+        case 'tipo_ayuda': endpoint = `/gestion_ayudas/tipos/${id}/`; break; // ✅ Prefijo /api/ eliminado
+        case 'sub_tipo_ayuda': endpoint = `/gestion_ayudas/subtipos/${id}/`; break; // ✅ Prefijo /api/ eliminado
         default: return;
       }
 
@@ -283,84 +246,64 @@ const RegistroSelectores = () => {
     }
   };
 
+  // === Reiniciar formulario ===
   const resetForm = () => {
     setForm({ nombre: '', extra: '' });
     setEditingId(null);
-    setError(''); // Limpiar errores al resetear
-    setSuccess(''); // Limpiar éxitos al resetear
+    setError('');
+    setSuccess('');
   };
 
+  // === Recargar datos ===
   const refrescarDatos = () => {
     const cargarDatos = async () => {
-      setLoading(true); // Indicar que se están recargando los datos
+      setLoading(true);
       try {
         let res;
         switch (activeTab) {
-          case 'bloque':
-            res = await api.get('/selectores/bloques/');
-            setData(res.data.filter(b => [9, 10].includes(b.parroquia)));
+          case 'institucion':
+            res = await api.get('/gestion_ayudas/instituciones/'); // ✅ Prefijo /api/ eliminado
+            setData(res.data);
             break;
-          case 'sector':
-            res = await api.get('/selectores/sectores/');
-            setData(res.data.filter(s => [9, 10].includes(s.bloque)));
+          case 'tipo_ayuda':
+            res = await api.get('/gestion_ayudas/tipos/'); // ✅ Prefijo /api/ eliminado
+            setData(res.data);
             break;
-          case 'estructura':
-            res = await api.get('/selectores/estructuras/');
-            setData(res.data.filter(e => {
-              const sector = sectores[e.sector];
-              return sector && [9, 10].includes(sector.bloque);
-            }));
-            break;
-          case 'calle':
-            res = await api.get('/selectores/calles/');
-            setData(res.data.filter(c => {
-              const estructura = estructuras[c.estructura];
-              const sector = estructura ? sectores[estructura.sector] : null;
-              return sector && [9, 10].includes(sector.bloque);
-            }));
+          case 'sub_tipo_ayuda':
+            res = await api.get('/gestion_ayudas/subtipos/'); // ✅ Prefijo /api/ eliminado
+            setData(res.data);
             break;
         }
-        setError(''); // Limpiar error si la recarga de datos es exitosa
+        setError(''); 
       } catch (err) {
         console.error('Error al recargar datos:', err);
         setError('Error al recargar datos. Podría haber un problema con la API.');
       } finally {
-        setLoading(false); // Finalizar la carga de datos
+        setLoading(false);
       }
     };
     cargarDatos();
   };
 
+  // === Renderizar campo extra (relación) con búsqueda ===
   const renderExtraField = () => {
     let options = [];
     let label = '';
     let valueKey = '';
-    let nameKey = 'nombre'; 
+    let nameKey = 'nombre'; // Consistente con el backend
 
     switch (activeTab) {
-      case 'bloque':
-        options = Object.values(parroquias);
-        label = 'Parroquia';
-        valueKey = 'cod_parroquia';
-        nameKey = 'nombre'; // Usar 'nombre' de la API
+      case 'institucion':
+        return null; // No hay campo extra para institución
+      case 'tipo_ayuda':
+        options = Object.values(instituciones);
+        label = 'Institución';
+        valueKey = 'cod_institucion';
         break;
-      case 'sector':
-        options = Object.values(bloques);
-        label = 'Bloque';
-        valueKey = 'cod_bloque';
-        nameKey = 'nombre'; 
-        break;
-      case 'estructura':
-        options = Object.values(sectores);
-        label = 'Sector';
-        valueKey = 'cod_sector';
-        nameKey = 'nombre'; 
-        break;
-      case 'calle':
-        options = Object.values(estructuras);
-        label = 'Estructura';
-        valueKey = 'cod_estructura';
-        nameKey = 'nombre'; 
+      case 'sub_tipo_ayuda':
+        options = Object.values(tiposAyuda);
+        label = 'Tipo de Ayuda';
+        valueKey = 'cod_ayuda';
         break;
       default:
         return null;
@@ -368,7 +311,7 @@ const RegistroSelectores = () => {
 
     const selectOptions = options.map(opt => ({
       value: opt[valueKey],
-      label: opt[nameKey], 
+      label: opt[nameKey],
     }));
 
     const selectedOption = selectOptions.find(opt => opt.value.toString() === form.extra) || null;
@@ -400,12 +343,12 @@ const RegistroSelectores = () => {
     );
   };
 
+  // === Renderizar tabla ===
   const renderTableContent = () => {
     const headers = {
-      bloque: ['Código', 'Nombre', 'Parroquia'],
-      sector: ['Código', 'Nombre', 'Bloque'],
-      estructura: ['Código', 'Nombre', 'Sector'],
-      calle: ['Código', 'Nombre', 'Estructura'],
+      institucion: ['Código', 'Nombre'],
+      tipo_ayuda: ['Código', 'Nombre', 'Institución'],
+      sub_tipo_ayuda: ['Código', 'Nombre', 'Tipo de Ayuda'],
     }[activeTab];
 
     return (
@@ -429,25 +372,26 @@ const RegistroSelectores = () => {
             </tr>
           ) : (
             data.map((item) => {
-              const id = item.cod_bloque || item.cod_sector || item.cod_estructura || item.cod_calle;
-              const nombre = item.nombre; 
-
+              let id = null;
               let relacionNombre = '';
-              if (activeTab === 'bloque') {
-                relacionNombre = parroquias[item.parroquia]?.nombre || 'Desconocido'; 
-              } else if (activeTab === 'sector') {
-                relacionNombre = bloques[item.bloque]?.nombre || 'Desconocido'; 
-              } else if (activeTab === 'estructura') {
-                relacionNombre = sectores[item.sector]?.nombre || 'Desconocido'; 
-              } else if (activeTab === 'calle') {
-                relacionNombre = estructuras[item.estructura]?.nombre || 'Desconocido'; 
+
+              if (activeTab === 'institucion') {
+                id = item.cod_institucion;
+              } else if (activeTab === 'tipo_ayuda') {
+                id = item.cod_ayuda;
+                relacionNombre = instituciones[item.institucion]?.nombre || 'Desconocido';
+              } else if (activeTab === 'sub_tipo_ayuda') {
+                id = item.cod_sub_tipo;
+                relacionNombre = tiposAyuda[item.tipo_ayuda]?.nombre || 'Desconocido';
               }
 
               return (
                 <tr key={id} className="border-b last:border-b-0 hover:bg-gray-50">
                   <td className="py-2 px-4 text-sm">{id}</td>
-                  <td className="py-2 px-4 text-sm">{nombre}</td>
-                  <td className="py-2 px-4 text-sm">{relacionNombre}</td>
+                  <td className="py-2 px-4 text-sm">{item.nombre}</td>
+                  {activeTab !== 'institucion' && (
+                    <td className="py-2 px-4 text-sm">{relacionNombre}</td>
+                  )}
                   <td className="py-2 px-4 border-b text-sm">
                     <button
                       onClick={() => handleEdit(item)}
@@ -471,10 +415,9 @@ const RegistroSelectores = () => {
     );
   };
 
-
   return (
     <div className="p-6 max-w-6xl mx-auto bg-gray-50 min-h-screen font-sans">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">📋 Administrar Direcciones - MP. MANEIRO</h1>
+      <h1 className="text-3xl font-bold text-gray-800 mb-6">📋 Administrar Tipos de Ayuda</h1>
 
       {error && (
         <div className="mb-4 p-3 bg-red-100 text-red-700 rounded border border-red-200 animate-fade-in-down">
@@ -491,10 +434,9 @@ const RegistroSelectores = () => {
       {/* Pestañas */}
       <div className="flex border-b mb-6 bg-white rounded-t-lg shadow-sm">
         {[
-          { id: 'bloque', label: 'Bloques' },
-          { id: 'sector', label: 'Sectores' },
-          { id: 'estructura', label: 'Estructuras' },
-          { id: 'calle', label: 'Calles' },
+          { id: 'institucion', label: 'Instituciones' },
+          { id: 'tipo_ayuda', label: 'Tipos de Ayuda' },
+          { id: 'sub_tipo_ayuda', label: 'Sub Tipos de Ayuda' },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -517,7 +459,7 @@ const RegistroSelectores = () => {
       <div className={`bg-white p-6 rounded-lg shadow mb-6 ${editingId ? 'border-l-4 border-blue-500' : ''}`}>
         <h2 className="text-xl font-semibold mb-4 flex items-center text-gray-800">
           <span className="mr-2">✏️</span>
-          {editingId ? 'Editar' : 'Nuevo'} {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}
+          {editingId ? 'Editar' : 'Nuevo'} {activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('_', ' ')}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -527,7 +469,7 @@ const RegistroSelectores = () => {
               name="nombre"
               value={form.nombre}
               onChange={handleChange}
-              placeholder={`Nombre del ${activeTab}`}
+              placeholder={`Nombre de la ${activeTab.replace('_', ' ')}`}
               className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
               required
             />
@@ -559,7 +501,7 @@ const RegistroSelectores = () => {
       {/* Tabla */}
       <div className="bg-white p-6 rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4 text-gray-800">
-          Lista de {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)}s
+          Lista de {activeTab.charAt(0).toUpperCase() + activeTab.slice(1).replace('_', ' ')}s
         </h3>
         {loading ? (
           <p className="text-center py-4 text-gray-500">Cargando...</p>
@@ -571,4 +513,4 @@ const RegistroSelectores = () => {
   );
 };
 
-export default RegistroSelectores;
+export default AdminAyudas;

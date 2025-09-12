@@ -15,8 +15,6 @@ const Dashboard = () => {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
-
-  // Nuevo estado para las propiedades del modal
   const [modalProps, setModalProps] = useState({
     title: "",
     headerColor: "",
@@ -30,24 +28,23 @@ const Dashboard = () => {
     fechaNacimiento: "",
     parroquia: "",
     municipio: "",
-    sector: "",
+    estructura: "",
     telefono: "",
     direccion: "",
+    calle: "", // Asegurarse de incluir 'calle' en el estado
     institucion: "",
     estado: "",
     tipo: "",
+    subtipo: "", // Asegurarse de incluir 'subtipo'
     observacion: "",
     responsableInstitucion: "",
   });
 
-  // Estados para el sistema de PIN (registro)
   const [pinRequired, setPinRequired] = useState(false);
   const [pinInput, setPinInput] = useState("");
-
-  // Estados para PIN en acciones (editar/eliminar)
   const [pinForAction, setPinForAction] = useState("");
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [actionToConfirm, setActionToConfirm] = useState(null); // 'edit' o 'delete'
+  const [actionToConfirm, setActionToConfirm] = useState(null);
 
   useEffect(() => {
     if (alert.show) {
@@ -93,7 +90,7 @@ const Dashboard = () => {
   const fetchAyudas = useCallback(async (showAlert = true) => {
     console.log("INTENTANDO: Cargar ayudas desde la API...");
     try {
-      const response = await axios.get("https://maneiro-api.onrender.com/api/");
+      const response = await axios.get("http://127.0.0.1:8000/api/");
       console.log(
         "ÉXITO: Respuesta de la API (datos crudos de Ayudas):",
         response.data
@@ -116,7 +113,6 @@ const Dashboard = () => {
       }));
       setAyudas(apiAyudas);
 
-      // ✅ Solo muestra alerta si se solicita
       if (showAlert) {
         setAlert({
           show: true,
@@ -140,7 +136,6 @@ const Dashboard = () => {
     fetchAyudas();
   }, [fetchAyudas]);
 
-  // Función para verificar si se necesita PIN al registrar
   const checkIfPinRequired = (cedula, allAyudas) => {
     if (!cedula) return false;
 
@@ -178,7 +173,7 @@ const Dashboard = () => {
     try {
       console.log(`Buscando beneficiario para cédula: ${cedula}`);
       const response = await axios.get(
-        `https://maneiro-api.onrender.com/registro_electoral/buscar/?cedula=${cedula}`
+        `http://127.0.0.1:8000/registro_electoral/buscar/?cedula=${cedula}`
       );
       const data = response.data;
       console.log("Respuesta completa de la API de registro electoral:", data);
@@ -195,10 +190,9 @@ const Dashboard = () => {
         fechaNacimiento: formatToYYYYMMDD(data.fecha_nacimiento),
         parroquia: data.parroquia,
         municipio: data.municipio,
-        sector: data.sector,
+        estructura: data.estructura,
       }));
 
-      // Verificar si se necesita PIN después de buscar
       const requiresPin = checkIfPinRequired(cedula, ayudas);
       setPinRequired(requiresPin);
       if (!requiresPin) setPinInput("");
@@ -243,12 +237,14 @@ const Dashboard = () => {
         fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
         parroquia: ayuda.parroquia,
         municipio: ayuda.municipio,
-        sector: ayuda.sector,
-        telefono: ayuda.telefono,
-        direccion: ayuda.direccion,
-        institucion: ayuda.institucion,
+        estructura: ayuda.estructura || "",
+        telefono: ayuda.telefono || "",
+        direccion: ayuda.direccion || "",
+        calle: ayuda.calle || "", // Corregido: Mapear 'calle'
+        institucion: ayuda.institucion || "",
         estado: ayuda.estado,
-        tipo: ayuda.tipo,
+        tipo: ayuda.tipo || "",
+        subtipo: ayuda.subtipo || "", // Corregido: Mapear 'subtipo'
         observacion: ayuda.observacion || "",
         responsableInstitucion: ayuda.responsableInstitucion || "",
       });
@@ -268,12 +264,14 @@ const Dashboard = () => {
         fechaNacimiento: "",
         parroquia: "",
         municipio: "",
-        sector: "",
+        estructura: "",
         telefono: "",
         direccion: "",
+        calle: "",
         institucion: "",
         estado: "REGISTRADO / RECIBIDO",
         tipo: "",
+        subtipo: "",
         observacion: "",
         responsableInstitucion: "",
       });
@@ -297,7 +295,6 @@ const Dashboard = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
 
-    // Verificar si cambió la cédula y estamos en modo "nuevo"
     if (name === "cedula" && !selectedAyuda) {
       const requiresPin = checkIfPinRequired(value, ayudas);
       setPinRequired(requiresPin);
@@ -310,26 +307,32 @@ const Dashboard = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validación de campos obligatorios
     if (
       !formData.cedula ||
       !formData.beneficiario ||
-      !formData.tipo ||
-      !formData.sector ||
-      !formData.telefono ||
-      !formData.direccion ||
-      !formData.institucion ||
-      !formData.responsableInstitucion
+      !formData.nacionalidad ||
+      !formData.sexo ||
+      !formData.municipio ||
+      !formData.parroquia
     ) {
       setAlert({
         show: true,
-        message: "Por favor, complete todos los campos requeridos.",
+        message:
+          "Por favor, complete todos los campos requeridos (cédula, beneficiario, nacionalidad, sexo, municipio, parroquia).",
         type: "error",
       });
       return;
     }
 
-    // Validar PIN si es requerido (registro)
+    if (formData.telefono && !/^\d{10}$/.test(formData.telefono)) {
+      setAlert({
+        show: true,
+        message: "El teléfono debe tener exactamente 10 dígitos numéricos.",
+        type: "error",
+      });
+      return;
+    }
+
     if (pinRequired && (!pinInput || pinInput !== "270725")) {
       setAlert({
         show: true,
@@ -339,7 +342,6 @@ const Dashboard = () => {
       return;
     }
 
-    // Generar código
     let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
     if (!selectedAyuda) {
       const maxId = ayudas.reduce((max, ayuda) => {
@@ -355,33 +357,34 @@ const Dashboard = () => {
       beneficiario: formData.beneficiario,
       nacionalidad: formData.nacionalidad === "V" ? "V" : "E",
       sexo: formData.sexo === "Masculino" ? "M" : "F",
-      fecha: new Date().toISOString().split("T")[0],
       fechaNacimiento: formData.fechaNacimiento,
       parroquia: formData.parroquia,
       municipio: formData.municipio,
-      sector: formData.sector,
-      telefono: formData.telefono,
-      direccion: formData.direccion,
-      institucion: formData.institucion,
-      estado: formData.estado,
-      tipo: formData.tipo,
-      observacion: formData.observacion,
-      responsableInstitucion: formData.responsableInstitucion,
+      estructura: formData.estructura || "",
+      telefono: formData.telefono || "",
+      direccion: formData.direccion || "",
+      calle: formData.calle || "", // Corregido: Enviar 'calle' al API
+      institucion: formData.institucion || "",
+      estado: formData.estado || "REGISTRADO / RECIBIDO",
+      tipo: formData.tipo || "",
+      observacion: formData.observacion || "",
+      responsableInstitucion: formData.responsableInstitucion || "",
+      subtipo: formData.subtipo || "", // Corregido: Enviar 'subtipo' al API
     };
 
     try {
       if (selectedAyuda) {
         await axios.put(
-          `https://maneiro-api.onrender.com/api/${selectedAyuda.id}/`,
+          `http://127.0.0.1:8000/api/${selectedAyuda.id}/`,
           apiData
         );
         setAlert({
           show: true,
-          message: "Ayuda actualizada exitosamente. ",
+          message: "Ayuda actualizada exitosamente.",
           type: "success",
         });
       } else {
-        await axios.post("https://maneiro-api.onrender.com/api/", apiData);
+        await axios.post("http://127.0.0.1:8000/api/", apiData);
         setAlert({
           show: true,
           message: "Nueva ayuda registrada exitosamente.",
@@ -390,7 +393,7 @@ const Dashboard = () => {
       }
       closeModal();
       setSelectedAyuda(null);
-      fetchAyudas(false); // Recarga sin mostrar "Datos cargados..."
+      fetchAyudas(false);
     } catch (error) {
       console.error(
         "Error al guardar la ayuda:",
@@ -406,7 +409,6 @@ const Dashboard = () => {
     }
   };
 
-  // --- NUEVAS FUNCIONES: PIN para Editar y Eliminar ---
   const requirePinForAction = (action) => {
     if (!selectedAyuda) return;
     setActionToConfirm(action);
@@ -449,21 +451,16 @@ const Dashboard = () => {
     if (itemToDelete) {
       try {
         await axios.delete(
-          `https://maneiro-api.onrender.com/api/${itemToDelete.id}/`
+          `http://127.0.0.1:8000/api/${itemToDelete.id}/`
         );
-
-        // ✅ Mensaje claro: eliminación
         setAlert({
           show: true,
           message: "Ayuda eliminada exitosamente. ❌",
           type: "success",
         });
-
         setIsConfirmModalOpen(false);
         setItemToDelete(null);
         setSelectedAyuda(null);
-
-        // ✅ Recarga datos, pero SIN mostrar alerta de carga
         fetchAyudas(false);
       } catch (error) {
         console.error(
@@ -482,17 +479,17 @@ const Dashboard = () => {
       }
     }
   };
+
   const closeConfirmModal = () => {
     setIsConfirmModalOpen(false);
     setItemToDelete(null);
   };
 
-  // Filtro mejorado para evitar falsos positivos en búsquedas numéricas
   const filteredAyudas = ayudas.filter((ayuda) => {
     const matchesPalabra =
       ayuda.beneficiario?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
       ayuda.cedula?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
-      ayuda.sector?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
+      ayuda.estructura?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
       false;
 
     const matchesCodigo = () => {
@@ -568,7 +565,6 @@ const Dashboard = () => {
           />
         )}
 
-        {/* Encabezado */}
         <div className="mb-6 flex flex-col flex justify-center sm:flex-row items-center sm:items-start gap-4 rounded-xl bg-white p-4 shadow-lg border border-gray-300">
           <img
             src="/LOGO.png"
@@ -589,10 +585,8 @@ const Dashboard = () => {
             </p>
           </div>
         </div>
-        {/* Filtros y botones */}
         <div className="bg-white p-6 rounded-2xl shadow-lg border border-blue-100">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            {/* Inputs */}
             <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
               <div className="flex-1">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -614,13 +608,12 @@ const Dashboard = () => {
                   type="text"
                   value={searchPalabra}
                   onChange={(e) => setSearchPalabra(e.target.value)}
-                  placeholder="Cédula, nombre, sector..."
+                  placeholder="Cédula, nombre, estructura..."
                   className="w-full px-4 py-1.5 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all text-sm"
                 />
               </div>
             </div>
 
-            {/* Botones */}
             <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
               <button
                 onClick={() => openModal()}
@@ -693,7 +686,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Tabla */}
         <div className="overflow-x-auto rounded-2xl shadow-lg mt-6 border border-blue-100 bg-white">
           <Table
             sortedAyudas={sortedAyudas}
@@ -709,7 +701,6 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Modal de Registro/Edición */}
       <Modal
         isModalOpen={isModalOpen}
         closeModal={closeModal}
@@ -722,13 +713,11 @@ const Dashboard = () => {
         setAlert={setAlert}
         modalTitle={modalProps.title}
         modalHeaderColor={modalProps.headerColor}
-        // Props del PIN
         pinRequired={pinRequired}
         pinInput={pinInput}
         handlePinInputChange={(e) => setPinInput(e.target.value)}
       />
 
-      {/* Confirmar eliminación */}
       <ConfirmDeleteModal
         isOpen={isConfirmModalOpen}
         onClose={closeConfirmModal}
@@ -736,7 +725,6 @@ const Dashboard = () => {
         itemName={itemToDelete?.beneficiario || "este elemento"}
       />
 
-      {/* Modal de PIN para Editar/Eliminar */}
       {isPinModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
           <div className="relative p-6 bg-white rounded-2xl shadow-xl max-w-md mx-auto">
@@ -755,7 +743,6 @@ const Dashboard = () => {
               className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6] text-center text-lg tracking-widest"
               maxLength="6"
               autoFocus
-              // ✅ Evita que el navegador recuerde este campo
               autoComplete="one-time-code"
             />
             <div className="flex justify-end space-x-4 mt-6">

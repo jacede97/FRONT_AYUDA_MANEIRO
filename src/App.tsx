@@ -1,14 +1,17 @@
 import React, { useState } from "react";
-// Importa tus componentes existentes
-import Login from "./components/Login"; // Tu componente de Login
-import Dashboard from "./components/dashboard/dashboard"; // Tu componente de Dashboard
-import Menu from "./layout/Menu"; // Tu componente de Menú
-import Header from "./layout/Header"; // Tu componente de Header
-import ReportesAyudas from "./components/report/ReportesAyudas";
-import beneficiarios from "./components/beneficiarios/beneficiarios";
-import RegistroSelectores from "./components/selectores/RegistroSelectores"; // <--- ¡ESTA ES LA LÍNEA QUE DEBES AJUSTAR!
 
-// Si tienes un componente para Configuracion, impórtalo también
+// Importa tus componentes
+import Login from "./components/Login";
+import Dashboard from "./components/dashboard/dashboard";
+import Menu from "./layout/Menu";
+import Header from "./layout/Header";
+import ReportesAyudas from "./components/report/ReportesAyudas";
+import Beneficiarios from "./components/beneficiarios/beneficiarios"; // Corregido: PascalCase
+import RegistroUsuario from "./components/RegistroUsuario/RegistroUsuario"; // Usamos este (panel completo)
+import RegistroSelectores from "./components/selectores/RegistroSelectores"; // Usamos este (panel completo)
+import AdminAyudas from "./components/RegistroTiposAyudas/tipos_de_ayudas"; // ✅ Importado el nuevo componente
+
+// Si tienes Configuracion, descomenta:
 // import Configuracion from "./components/Configuracion";
 
 const App = () => {
@@ -22,6 +25,11 @@ const App = () => {
   };
 
   const handleLogout = () => {
+    // Opcional: limpiar tokens
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    
     setIsLoggedIn(false);
     setCurrentView("dashboard");
   };
@@ -35,11 +43,15 @@ const App = () => {
       case "dashboard":
         return <Dashboard />;
       case "beneficiarios":
-        return <beneficiarios />;
+        return <Beneficiarios />;
       case "reports":
         return <ReportesAyudas />;
-      case "selectores": // ← Nuevo
-        return <RegistroSelectores />;
+      case "selectores": // Coincide con el botón del menú
+        return <RegistroSelectores />; // Muestra el panel de gestión de selectores
+      case "adminAyudas": // ✅ Nuevo caso para el componente AdminAyudas
+        return <AdminAyudas />;
+      case "usuario": // Coincide con el botón del menú
+        return <RegistroUsuario />; // Muestra el panel de gestión de usuarios
       case "configuracion":
         return (
           <div className="p-6 bg-white rounded-xl shadow-lg">
@@ -47,7 +59,7 @@ const App = () => {
               Configuración de la Aplicación
             </h2>
             <p className="text-gray-700">
-             
+              Aquí irá la configuración del sistema.
             </p>
           </div>
         );
@@ -56,6 +68,7 @@ const App = () => {
     }
   };
 
+  // Si no está logueado, muestra el login
   if (!isLoggedIn) {
     return <Login onLoginSuccess={handleLoginSuccess} />;
   }
@@ -66,6 +79,7 @@ const App = () => {
 
       <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col lg:flex-row h-full">
+          {/* Menú lateral */}
           <Menu
             isMenuOpen={isMenuOpen}
             toggleMenu={toggleMenu}
@@ -74,9 +88,13 @@ const App = () => {
             currentView={currentView}
           />
 
+          {/* Separador visible en pantallas grandes */}
           <div className="w-px bg-gray-200 hidden lg:block"></div>
 
-          <div className="flex-1 overflow-auto p-4">{renderMainContent()}</div>
+          {/* Contenido principal */}
+          <div className="flex-1 overflow-auto p-4">
+            {renderMainContent()}
+          </div>
         </div>
       </div>
     </div>
