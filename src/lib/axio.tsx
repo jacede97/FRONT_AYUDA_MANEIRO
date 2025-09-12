@@ -1,8 +1,8 @@
-// src/lib/axios.tsx
-import axios from 'axios'; // ✅ Usa un alias para evitar conflicto
+import axios from 'axios';
 
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api',
+  // ✅ CAMBIAR: Usar la URL de la API en Render
+  baseURL: 'https://maneiro-api-mem1.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
