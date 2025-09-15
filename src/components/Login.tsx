@@ -60,7 +60,7 @@ const Login = ({ onLoginSuccess }) => {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
-              placeholder="Ej: JA.CEDE97"
+              placeholder="Ej: USUARIO"
               required
               autoFocus
             />

@@ -31,11 +31,11 @@ const Dashboard = () => {
     estructura: "",
     telefono: "",
     direccion: "",
-    calle: "", // Asegurarse de incluir 'calle' en el estado
+    calle: "",
     institucion: "",
     estado: "",
     tipo: "",
-    subtipo: "", // Asegurarse de incluir 'subtipo'
+    subtipo: "",
     observacion: "",
     responsableInstitucion: "",
   });
@@ -91,26 +91,37 @@ const Dashboard = () => {
     console.log("INTENTANDO: Cargar ayudas desde la API...");
     try {
       const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/");
-      console.log(
-        "ÉXITO: Respuesta de la API (datos crudos de Ayudas):",
-        response.data
-      );
+      console.log("ÉXITO: Respuesta de la API (datos crudos de Ayudas):", response.data);
 
-      const apiAyudas = response.data.map((ayuda) => ({
-        ...ayuda,
-        id: ayuda.id,
-        fecha: new Date(ayuda.fecha).toISOString().split("T")[0],
-        beneficiario: ayuda.beneficiario || "",
-        nacionalidad:
-          ayuda.cedula &&
-          typeof ayuda.cedula === "string" &&
-          ayuda.cedula.startsWith("V")
-            ? "V"
-            : "E",
-        sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
-        fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
-        responsableInstitucion: ayuda.responsableInstitucion || "",
-      }));
+      const apiAyudas = response.data.map((ayuda) => {
+        let nacionalidad = ayuda.nacionalidad;
+        if (!nacionalidad || nacionalidad === "") {
+          nacionalidad =
+            ayuda.cedula && typeof ayuda.cedula === "string" && ayuda.cedula.startsWith("V")
+              ? "V"
+              : "E";
+        }
+
+        const tipoMap = {
+          1: "Asistencias Médicas",
+          2: "Enseres",
+          3: "Tanque",
+          4: "Tanques de Agua",
+        };
+        const tipoTexto = tipoMap[ayuda.tipo] || "Desconocido";
+
+        return {
+          ...ayuda,
+          id: ayuda.id,
+          fecha: new Date(ayuda.fecha_registro).toISOString().split("T")[0],
+          beneficiario: ayuda.beneficiario || "",
+          nacionalidad: nacionalidad,
+          sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
+          fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
+          responsableInstitucion: ayuda.responsableInstitucion || "",
+          tipo: tipoTexto,
+        };
+      });
       setAyudas(apiAyudas);
 
       if (showAlert) {
@@ -123,10 +134,23 @@ const Dashboard = () => {
     } catch (error) {
       console.error("ERROR: Fallo al cargar las ayudas desde la API.");
       console.error("Detalles del error:", error);
+
+      let errorMessage = "¡Error al conectar con la API! No se pudieron cargar los datos.";
+
+      if (error.response) {
+        console.error("Respuesta de la API con error:", error.response.status, error.response.data);
+        errorMessage = `Error de la API: ${error.response.status}. Mensaje: ${error.response.data.detail || error.response.data.message || 'Error desconocido'}`;
+      } else if (error.request) {
+        console.error("No se recibió respuesta del servidor.");
+        errorMessage = "No se pudo conectar al servidor de la API. Por favor, intente de nuevo más tarde.";
+      } else {
+        console.error("Error al configurar la solicitud:", error.message);
+        errorMessage = `Error al procesar la solicitud: ${error.message}`;
+      }
+
       setAlert({
         show: true,
-        message:
-          "¡Error al conectar con la API! No se pudieron cargar los datos.",
+        message: errorMessage,
         type: "error",
       });
     }
@@ -227,12 +251,19 @@ const Dashboard = () => {
   };
 
   const openModal = (ayuda = null) => {
+    const tipoMapInverso = {
+      "Asistencias Médicas": 1,
+      "Enseres": 2,
+      "Tanque": 3,
+      "Tanques de Agua": 4,
+    };
+    
     if (ayuda) {
       setSelectedAyuda(ayuda);
       setFormData({
         cedula: ayuda.cedula,
         beneficiario: ayuda.beneficiario || "",
-        nacionalidad: ayuda.nacionalidad,
+        nacionalidad: ayuda.nacionalidad || "",
         sexo: ayuda.sexo,
         fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
         parroquia: ayuda.parroquia,
@@ -240,11 +271,11 @@ const Dashboard = () => {
         estructura: ayuda.estructura || "",
         telefono: ayuda.telefono || "",
         direccion: ayuda.direccion || "",
-        calle: ayuda.calle || "", // Corregido: Mapear 'calle'
+        calle: ayuda.calle || "",
         institucion: ayuda.institucion || "",
         estado: ayuda.estado,
-        tipo: ayuda.tipo || "",
-        subtipo: ayuda.subtipo || "", // Corregido: Mapear 'subtipo'
+        tipo: tipoMapInverso[ayuda.tipo] || "",
+        subtipo: ayuda.subtipo || "",
         observacion: ayuda.observacion || "",
         responsableInstitucion: ayuda.responsableInstitucion || "",
       });
@@ -351,6 +382,16 @@ const Dashboard = () => {
       generatedCodigo = `AYU-${String(maxId + 1).padStart(3, "0")}`;
     }
 
+    const currentDate = new Date().toISOString();
+
+    const tipoMapInverso = {
+      "Asistencias Médicas": 1,
+      "Enseres": 2,
+      "Tanque": 3,
+      "Tanques de Agua": 4,
+    };
+    const tipoNumero = tipoMapInverso[formData.tipo] || null;
+
     const apiData = {
       codigo: generatedCodigo,
       cedula: formData.cedula,
@@ -363,13 +404,15 @@ const Dashboard = () => {
       estructura: formData.estructura || "",
       telefono: formData.telefono || "",
       direccion: formData.direccion || "",
-      calle: formData.calle || "", // Corregido: Enviar 'calle' al API
+      calle: formData.calle || "",
       institucion: formData.institucion || "",
       estado: formData.estado || "REGISTRADO / RECIBIDO",
-      tipo: formData.tipo || "",
+      tipo: tipoNumero,
       observacion: formData.observacion || "",
       responsableInstitucion: formData.responsableInstitucion || "",
-      subtipo: formData.subtipo || "", // Corregido: Enviar 'subtipo' al API
+      subtipo: formData.subtipo || "",
+      fecha_registro: currentDate,
+      fecha_actualizacion: currentDate,
     };
 
     try {
@@ -494,32 +537,43 @@ const Dashboard = () => {
 
     const matchesCodigo = () => {
       if (!searchCodigo.trim()) return true;
+
       const userQuery = searchCodigo.trim().toUpperCase();
       const codigo = ayuda.codigo?.toUpperCase();
       if (!codigo) return false;
 
+      if (codigo === userQuery) {
+        return true;
+      }
+      
       const match = codigo.match(/AYU-(\d+)/);
       if (!match) return false;
 
-      const numeroSecuencial = match[1];
-      const numSecuencial = parseInt(numeroSecuencial, 10);
+      const numeroSecuencial = parseInt(match[1], 10);
       const numUsuario = parseInt(userQuery.replace(/^AYU-/, ""), 10);
 
-      if (!isNaN(numUsuario) && !isNaN(numSecuencial)) {
-        return numSecuencial === numUsuario;
+      if (!isNaN(numUsuario) && !isNaN(numeroSecuencial)) {
+        return numeroSecuencial === numUsuario;
       }
 
-      return (
-        codigo === userQuery ||
-        numeroSecuencial === userQuery.replace(/^AYU-/, "")
-      );
+      return codigo.includes(userQuery) || match[1].includes(userQuery);
     };
 
     return matchesCodigo() && matchesPalabra;
   });
 
   const sortedAyudas = [...filteredAyudas].sort((a, b) => {
-    if (sortConfig.key) {
+    if (sortConfig.key === "codigo") {
+      const aNum = parseInt(a.codigo?.replace("AYU-", ""), 10);
+      const bNum = parseInt(b.codigo?.replace("AYU-", ""), 10);
+
+      if (isNaN(aNum) && isNaN(bNum)) return 0;
+      if (isNaN(aNum)) return sortConfig.direction === "asc" ? 1 : -1;
+      if (isNaN(bNum)) return sortConfig.direction === "asc" ? -1 : 1;
+      
+      const comparison = aNum - bNum;
+      return sortConfig.direction === "asc" ? comparison : -comparison;
+    } else if (sortConfig.key) {
       const aValue = a[sortConfig.key];
       const bValue = b[sortConfig.key];
 

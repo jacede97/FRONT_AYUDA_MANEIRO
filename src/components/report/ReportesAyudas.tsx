@@ -3,18 +3,20 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Define la interfaz para la estructura de un reporte de ayuda.
 // ¡ATENCIÓN! La interfaz ha sido actualizada para coincidir con tus datos.
+// Se eliminó 'fecha' ya que no existe en los datos JSON.
+// Se ajustó 'fechaNacimiento' para permitir null, ya que en los datos puede ser null.
 interface Ayuda {
   id: number;
   codigo: string;
-  fecha: string; // Formato "YYYY-MM-DD"
   cedula: string;
   beneficiario: string;
   nacionalidad: string;
   sexo: string;
-  fechaNacimiento: string; // Formato "YYYY-MM-DD"
+  fechaNacimiento: string | null; // Formato "YYYY-MM-DD" o null
   municipio: string;
   parroquia: string;
   // Cambiado de 'sector' a 'estructura'
@@ -45,10 +47,17 @@ const ReportesAyudas: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Estados para los filtros
-  const [filterDate, setFilterDate] = useState<string>(""); // Para fecha de registro
+  const [filterFromDate, setFilterFromDate] = useState<string>(""); // Fecha desde
+  const [filterToDate, setFilterToDate] = useState<string>(""); // Fecha hasta
   // Cambiado de 'filterSector' a 'filterEstructura'
   const [filterEstructura, setFilterEstructura] = useState<string>("");
   const [filterTipo, setFilterTipo] = useState<string>("");
+  const [filterEstado, setFilterEstado] = useState<string>(""); // Nuevo filtro para estado
+  const [filterInstitucion, setFilterInstitucion] = useState<string>(""); // Nuevo filtro para institución
+  const [searchQuery, setSearchQuery] = useState<string>(""); // Nuevo buscador global
+
+  // Estado para ordenamiento
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Ayuda; direction: 'asc' | 'desc' } | null>(null);
 
   // Estados para la paginación
   const [currentPage, setCurrentPage] = useState(1);
@@ -170,11 +179,14 @@ const ReportesAyudas: React.FC = () => {
   useEffect(() => {
     let currentFiltered = allReportes;
 
-    // Filtro por fecha de registro
-    if (filterDate) {
-      currentFiltered = currentFiltered.filter(
-        (reporte) => reporte.fecha_registro.startsWith(filterDate) // Compara solo la parte de la fecha (YYYY-MM-DD)
-      );
+    // Filtro por rango de fechas
+    if (filterFromDate || filterToDate) {
+      currentFiltered = currentFiltered.filter((reporte) => {
+        const regDate = reporte.fecha_registro.substring(0, 10);
+        if (filterFromDate && regDate < filterFromDate) return false;
+        if (filterToDate && regDate > filterToDate) return false;
+        return true;
+      });
     }
 
     // Filtro por estructura
@@ -191,11 +203,39 @@ const ReportesAyudas: React.FC = () => {
       );
     }
 
+    // Filtro por estado
+    if (filterEstado) {
+      currentFiltered = currentFiltered.filter((reporte) =>
+        reporte.estado.toLowerCase().includes(filterEstado.toLowerCase())
+      );
+    }
+
+    // Filtro por institución
+    if (filterInstitucion) {
+      currentFiltered = currentFiltered.filter((reporte) =>
+        reporte.institucion.toLowerCase().includes(filterInstitucion.toLowerCase())
+      );
+    }
+
+    // Buscador global (filtra por beneficiario, cédula, código, etc.)
+    if (searchQuery) {
+      const lowerSearch = searchQuery.toLowerCase();
+      currentFiltered = currentFiltered.filter((reporte) =>
+        reporte.beneficiario.toLowerCase().includes(lowerSearch) ||
+        reporte.cedula.includes(lowerSearch) ||
+        reporte.codigo.toLowerCase().includes(lowerSearch) ||
+        reporte.estructura.toLowerCase().includes(lowerSearch) ||
+        reporte.tipo.toLowerCase().includes(lowerSearch) ||
+        reporte.estado.toLowerCase().includes(lowerSearch) ||
+        reporte.institucion.toLowerCase().includes(lowerSearch)
+      );
+    }
+
     setFilteredReportes(currentFiltered);
     setCurrentPage(1); // Reinicia a la primera página con cada cambio de filtro
-  }, [filterDate, filterEstructura, filterTipo, allReportes]); // Dependencias del efecto de filtrado
+  }, [filterFromDate, filterToDate, filterEstructura, filterTipo, filterEstado, filterInstitucion, searchQuery, allReportes]); // Dependencias del efecto de filtrado
 
-  // Obtiene los valores únicos para los filtros de estructura y tipo (para los dropdowns)
+  // Obtiene los valores únicos para los filtros de estructura, tipo, estado e institución (para los dropdowns)
   const uniqueEstructuras = useMemo(() => {
     const estructuras = new Set<string>();
     allReportes.forEach((reporte) => estructuras.add(reporte.estructura));
@@ -206,6 +246,18 @@ const ReportesAyudas: React.FC = () => {
     const tipos = new Set<string>();
     allReportes.forEach((reporte) => tipos.add(reporte.tipo));
     return Array.from(tipos).sort();
+  }, [allReportes]);
+
+  const uniqueEstados = useMemo(() => {
+    const estados = new Set<string>();
+    allReportes.forEach((reporte) => estados.add(reporte.estado));
+    return Array.from(estados).sort();
+  }, [allReportes]);
+
+  const uniqueInstituciones = useMemo(() => {
+    const instituciones = new Set<string>();
+    allReportes.forEach((reporte) => instituciones.add(reporte.institucion));
+    return Array.from(instituciones).sort();
   }, [allReportes]);
 
   // --- INICIO: Cálculo de Totales Dinámicos ---
@@ -247,19 +299,71 @@ const ReportesAyudas: React.FC = () => {
     });
     return tipoCounts;
   }, [filteredReportes]);
+
+  const chartData = useMemo(() => {
+    return Object.entries(totalPorTipo).map(([name, value]) => ({ name, value }));
+  }, [totalPorTipo]);
   // --- FIN: Cálculo de Totales Dinámicos ---
+
+  // --- Ordenamiento ---
+  const sortedReportes = useMemo(() => {
+    let sortableItems = [...filteredReportes];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+
+        if (aVal === null) aVal = '';
+        if (bVal === null) bVal = '';
+
+        if (sortConfig.key === 'id') {
+          aVal = Number(aVal);
+          bVal = Number(bVal);
+        } else if (sortConfig.key === 'fecha_registro' || sortConfig.key === 'fecha_actualizacion') {
+          aVal = new Date(aVal as string).getTime();
+          bVal = new Date(bVal as string).getTime();
+        } else if (typeof aVal === 'string' && typeof bVal === 'string') {
+          aVal = aVal.toLowerCase();
+          bVal = bVal.toLowerCase();
+        }
+
+        if (aVal < bVal) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aVal > bVal) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [filteredReportes, sortConfig]);
+
+  const requestSort = (key: keyof Ayuda) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIndicator = (key: keyof Ayuda) => {
+    if (!sortConfig || sortConfig.key !== key) return '';
+    return sortConfig.direction === 'asc' ? ' ↑' : ' ↓';
+  };
+  // --- Fin Ordenamiento ---
 
   // --- Lógica de Paginación ---
   const totalPages = useMemo(
-    () => Math.ceil(filteredReportes.length / itemsPerPage),
-    [filteredReportes, itemsPerPage]
+    () => Math.ceil(sortedReportes.length / itemsPerPage),
+    [sortedReportes, itemsPerPage]
   );
 
   const currentReportsPaginated = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    return filteredReportes.slice(startIndex, endIndex);
-  }, [filteredReportes, currentPage, itemsPerPage]);
+    return sortedReportes.slice(startIndex, endIndex);
+  }, [sortedReportes, currentPage, itemsPerPage]);
 
   const handlePageChange = (pageNumber: number) => {
     setCurrentPage(pageNumber);
@@ -338,7 +442,7 @@ const ReportesAyudas: React.FC = () => {
       const tableColumn = [
         "ID",
         "Código",
-        "Fecha",
+        "Fecha Registro",
         "Cédula",
         "Beneficiario",
         "Nacionalidad",
@@ -356,18 +460,17 @@ const ReportesAyudas: React.FC = () => {
         "Subtipo", // Añadido
         "Estado",
         "Observación",
-        "Fecha Registro",
         "Fecha Actualización",
       ];
       const tableRows = filteredReportes.map((reporte) => [
         reporte.id,
         reporte.codigo,
-        reporte.fecha,
+        reporte.fecha_registro.substring(0, 10),
         reporte.cedula,
         reporte.beneficiario,
         reporte.nacionalidad,
         reporte.sexo,
-        reporte.fechaNacimiento,
+        reporte.fechaNacimiento ?? "", // Manejar null como cadena vacía
         reporte.municipio,
         reporte.parroquia,
         reporte.estructura, // Cambiado de 'sector'
@@ -380,8 +483,7 @@ const ReportesAyudas: React.FC = () => {
         reporte.subtipo, // Añadido
         reporte.estado,
         reporte.observacion,
-        new Date(reporte.fecha_registro).toLocaleDateString(),
-        new Date(reporte.fecha_actualizacion).toLocaleDateString(),
+        reporte.fecha_actualizacion.substring(0, 10),
       ]);
 
       (doc as any).autoTable({
@@ -469,14 +571,12 @@ const ReportesAyudas: React.FC = () => {
         Reportes de Ayudas
       </h1>
 
-      {/* --- Sección de Totales Dinámicos --- */}
+      {/* --- Sección de Totales Dinámicos con Gráfico --- */}
       <div className="bg-white p-6 rounded-lg shadow-lg mb-6 border border-blue-100">
         <h2 className="text-2xl font-bold text-gray-800 mb-4 text-center">
           Resumen de Reportes
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {" "}
-          {/* Reduced gap */}
           {/* Total de Ayudas */}
           <div className="bg-white p-4 rounded-lg shadow-md flex flex-col items-center justify-center border border-blue-100">
             <p className="text-4xl font-extrabold text-[#0095D4]">
@@ -523,8 +623,6 @@ const ReportesAyudas: React.FC = () => {
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-          {" "}
-          {/* Reduced gap */}
           {/* Total por Estado */}
           <div className="bg-white p-4 rounded-lg shadow-md border border-blue-100">
             <p className="text-lg font-bold text-gray-800 mb-2">
@@ -572,28 +670,58 @@ const ReportesAyudas: React.FC = () => {
             )}
           </div>
         </div>
+        {/* Gráfico de Barras para Total por Tipo */}
+        <div className="mt-6">
+          <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">
+            Gráfico de Total por Tipo de Ayuda
+          </h3>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="name" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Bar dataKey="value" fill="#0095D4" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
       {/* --- Fin: Sección de Totales Dinámicos --- */}
 
       {/* Sección de Filtros y Botones Mejorada */}
       <div className="bg-white p-6 rounded-lg shadow-lg mb-6 border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-4">
         {/* Contenedor de Filtros (ocupa la mayor parte del espacio) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 w-full">
-          {" "}
-          {/* Reduced gap */}
-          {/* Filtro de Fecha */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 w-full">
+          {/* Filtro de Fecha Desde */}
           <div>
             <label
-              htmlFor="filterDate"
+              htmlFor="filterFromDate"
               className="block text-sm font-medium text-gray-700 mb-2"
             >
-              Fecha:
+              Fecha Desde:
             </label>
             <input
               type="date"
-              id="filterDate"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+              id="filterFromDate"
+              value={filterFromDate}
+              onChange={(e) => setFilterFromDate(e.target.value)}
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#0069B6] focus:border-[#0069B6] sm:text-sm bg-white text-gray-900"
+            />
+          </div>
+          {/* Filtro de Fecha Hasta */}
+          <div>
+            <label
+              htmlFor="filterToDate"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Fecha Hasta:
+            </label>
+            <input
+              type="date"
+              id="filterToDate"
+              value={filterToDate}
+              onChange={(e) => setFilterToDate(e.target.value)}
               className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#0069B6] focus:border-[#0069B6] sm:text-sm bg-white text-gray-900"
             />
           </div>
@@ -641,6 +769,50 @@ const ReportesAyudas: React.FC = () => {
               ))}
             </select>
           </div>
+          {/* Filtro de Estado */}
+          <div>
+            <label
+              htmlFor="filterEstado"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Estado:
+            </label>
+            <select
+              id="filterEstado"
+              value={filterEstado}
+              onChange={(e) => setFilterEstado(e.target.value)}
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#0069B6] focus:border-[#0069B6] sm:text-sm bg-white text-gray-900"
+            >
+              <option value="">Todos</option>
+              {uniqueEstados.map((estado) => (
+                <option key={estado} value={estado}>
+                  {estado}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Filtro de Institución */}
+          <div>
+            <label
+              htmlFor="filterInstitucion"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Institución:
+            </label>
+            <select
+              id="filterInstitucion"
+              value={filterInstitucion}
+              onChange={(e) => setFilterInstitucion(e.target.value)}
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#0069B6] focus:border-[#0069B6] sm:text-sm bg-white text-gray-900"
+            >
+              <option value="">Todos</option>
+              {uniqueInstituciones.map((institucion) => (
+                <option key={institucion} value={institucion}>
+                  {institucion}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex flex-col gap-2 mt-4 md:mt-0">
           <button
@@ -658,7 +830,7 @@ const ReportesAyudas: React.FC = () => {
         </div>
       </div>
 
-      {/* Contenedor de la tabla */}
+      {/* Contenedor combinado de buscador y tabla */}
       {filteredReportes.length === 0 ? (
         <div className="text-center text-gray-600 p-8 bg-white rounded-lg shadow-md mt-6 border border-blue-100">
           {" "}
@@ -673,68 +845,101 @@ const ReportesAyudas: React.FC = () => {
         </div>
       ) : (
         <div className="bg-white rounded-lg shadow-md p-4 border border-blue-100">
+          {/* Buscador dentro del mismo div */}
+          <div className="mb-4">
+            <label
+              htmlFor="searchQuery"
+              className="block text-sm font-medium text-gray-700 mb-2"
+            >
+              Buscar:
+            </label>
+            <input
+              type="text"
+              id="searchQuery"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por beneficiario, cédula, código, etc."
+              className="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-[#0069B6] focus:border-[#0069B6] sm:text-sm bg-white text-gray-900"
+            />
+          </div>
 
-          {/* Contenedor de la tabla principal */}
-          <div className="overflow-x-auto" ref={bottomScrollContainerRef}>
+          {/* Tabla con barra deslizadora horizontal */}
+          <div ref={bottomScrollContainerRef} className="overflow-x-auto">
             <table
-              className="min-w-full divide-y divide-gray-200 text-gray-900"
+              className="min-w-full divide-y divide-gray-200 text-gray-900 table-auto"
               ref={tableRef}
             >
               <thead className="bg-[#0095D4] sticky top-0">
                 <tr>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-tl-lg"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-tl-lg cursor-pointer"
+                    onClick={() => requestSort('id')}
                   >
-                    ID
+                    ID{getSortIndicator('id')}
                   </th>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => requestSort('codigo')}
                   >
-                    Código
+                    Código{getSortIndicator('codigo')}
                   </th>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => requestSort('fecha_registro')}
                   >
-                    Fecha
+                    Fecha{getSortIndicator('fecha_registro')}
                   </th>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => requestSort('beneficiario')}
                   >
-                    Beneficiario
+                    Beneficiario{getSortIndicator('beneficiario')}
                   </th>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => requestSort('cedula')}
                   >
-                    Cédula
+                    Cédula{getSortIndicator('cedula')}
                   </th>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => requestSort('estructura')}
                   >
-                    Estructura
+                    Estructura{getSortIndicator('estructura')}
                   </th>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => requestSort('institucion')}
                   >
-                    Tipo
+                    Institución{getSortIndicator('institucion')}
                   </th>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => requestSort('tipo')}
                   >
-                    Estado
+                    Tipo{getSortIndicator('tipo')}
                   </th>
                   <th
                     scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-tr-lg"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider cursor-pointer"
+                    onClick={() => requestSort('estado')}
                   >
-                    Reg.
+                    Estado{getSortIndicator('estado')}
+                  </th>
+                  <th
+                    scope="col"
+                    className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider rounded-tr-lg cursor-pointer"
+                    onClick={() => requestSort('fecha_registro')}
+                  >
+                    Reg.{getSortIndicator('fecha_registro')}
                   </th>
                 </tr>
               </thead>
@@ -751,7 +956,7 @@ const ReportesAyudas: React.FC = () => {
                       {reporte.codigo}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                      {reporte.fecha}
+                      {reporte.fecha_registro.substring(0, 10)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                       {reporte.beneficiario}
@@ -763,23 +968,25 @@ const ReportesAyudas: React.FC = () => {
                       {reporte.estructura}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                      {reporte.institucion}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                       {reporte.tipo}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                       <span
                         className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          reporte.estado === "VALIDADO / APROBADO"
-                            ? "bg-[#0095D4] text-white"
-                            : reporte.estado === "PENDIENTE"
-                            ? "bg-[#FFCB00] text-gray-900"
-                            : "bg-[#FF7D00] text-white"
+                          reporte.estado === "PENDIENTE POR INSPECCION" ? "bg-[#FF7D00] text-white" :
+                          (reporte.estado === "FINALIZADO" || reporte.estado === "APROBADO / PRIMERA ENTREGA") ? "bg-green-500 text-white" :
+                          reporte.estado === "EN PROCESO DE EVALUACION" ? "bg-blue-500 text-white" :
+                          "bg-[#FF7D00] text-white"
                         }`}
                       >
                         {reporte.estado}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
-                      {new Date(reporte.fecha_registro).toLocaleDateString()}
+                      {reporte.fecha_registro.substring(0, 10)}
                     </td>
                   </tr>
                 ))}
