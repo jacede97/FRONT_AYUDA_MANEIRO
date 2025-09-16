@@ -12,7 +12,7 @@ const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchCodigo, setSearchCodigo] = useState("");
   const [searchPalabra, setSearchPalabra] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [sortConfig, setSortConfig] = useState({ key: "codigo", direction: "desc" }); // Cambiado a ordenar por código de mayor a menor por defecto
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [modalProps, setModalProps] = useState({
@@ -102,14 +102,6 @@ const Dashboard = () => {
               : "E";
         }
 
-        const tipoMap = {
-          1: "Asistencias Médicas",
-          2: "Enseres",
-          3: "Tanque",
-          4: "Tanques de Agua",
-        };
-        const tipoTexto = tipoMap[ayuda.tipo] || "Desconocido";
-
         return {
           ...ayuda,
           id: ayuda.id,
@@ -119,7 +111,7 @@ const Dashboard = () => {
           sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
           fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
           responsableInstitucion: ayuda.responsableInstitucion || "",
-          tipo: tipoTexto,
+          tipo: ayuda.tipo || "Desconocido",
         };
       });
       setAyudas(apiAyudas);
@@ -251,13 +243,6 @@ const Dashboard = () => {
   };
 
   const openModal = (ayuda = null) => {
-    const tipoMapInverso = {
-      "Asistencias Médicas": 1,
-      "Enseres": 2,
-      "Tanque": 3,
-      "Tanques de Agua": 4,
-    };
-    
     if (ayuda) {
       setSelectedAyuda(ayuda);
       setFormData({
@@ -274,7 +259,7 @@ const Dashboard = () => {
         calle: ayuda.calle || "",
         institucion: ayuda.institucion || "",
         estado: ayuda.estado,
-        tipo: tipoMapInverso[ayuda.tipo] || "",
+        tipo: ayuda.tipo || "",
         subtipo: ayuda.subtipo || "",
         observacion: ayuda.observacion || "",
         responsableInstitucion: ayuda.responsableInstitucion || "",
@@ -384,14 +369,6 @@ const Dashboard = () => {
 
     const currentDate = new Date().toISOString();
 
-    const tipoMapInverso = {
-      "Asistencias Médicas": 1,
-      "Enseres": 2,
-      "Tanque": 3,
-      "Tanques de Agua": 4,
-    };
-    const tipoNumero = tipoMapInverso[formData.tipo] || null;
-
     const apiData = {
       codigo: generatedCodigo,
       cedula: formData.cedula,
@@ -407,7 +384,7 @@ const Dashboard = () => {
       calle: formData.calle || "",
       institucion: formData.institucion || "",
       estado: formData.estado || "REGISTRADO / RECIBIDO",
-      tipo: tipoNumero,
+      tipo: formData.tipo || "",
       observacion: formData.observacion || "",
       responsableInstitucion: formData.responsableInstitucion || "",
       subtipo: formData.subtipo || "",
@@ -427,6 +404,9 @@ const Dashboard = () => {
           type: "success",
         });
       } else {
+        // For new records, add to the top temporarily before API refresh
+        const newAyuda = { ...apiData, id: Date.now() }; // Temporary ID
+        setAyudas((prev) => [newAyuda, ...prev]); // Add new record at the top
         await axios.post("https://maneiro-api-mem1.onrender.com/api/", apiData);
         setAlert({
           show: true,
@@ -436,12 +416,16 @@ const Dashboard = () => {
       }
       closeModal();
       setSelectedAyuda(null);
-      fetchAyudas(false);
+      fetchAyudas(false); // Refresh to get the actual ID from the server
     } catch (error) {
       console.error(
         "Error al guardar la ayuda:",
         error.response?.data || error
       );
+      // Revert the temporary addition if the POST fails
+      if (!selectedAyuda) {
+        setAyudas((prev) => prev.slice(1)); // Remove the temporary record
+      }
       setAlert({
         show: true,
         message: `Error al guardar la ayuda: ${
@@ -567,10 +551,6 @@ const Dashboard = () => {
       const aNum = parseInt(a.codigo?.replace("AYU-", ""), 10);
       const bNum = parseInt(b.codigo?.replace("AYU-", ""), 10);
 
-      if (isNaN(aNum) && isNaN(bNum)) return 0;
-      if (isNaN(aNum)) return sortConfig.direction === "asc" ? 1 : -1;
-      if (isNaN(bNum)) return sortConfig.direction === "asc" ? -1 : 1;
-      
       const comparison = aNum - bNum;
       return sortConfig.direction === "asc" ? comparison : -comparison;
     } else if (sortConfig.key) {

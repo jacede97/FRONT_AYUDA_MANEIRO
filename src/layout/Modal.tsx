@@ -31,7 +31,6 @@ const Modal = ({
   const [direccionData, setDireccionData] = useState(null);
   const [ayudasData, setAyudasData] = useState(null);
 
-  // Estados para otros selectores (estáticos)
   const [municipioOptions] = useState([
     { value: "", label: "Seleccione un municipio" },
     { value: "MP. ARISMENDI", label: "MP. ARISMENDI" },
@@ -45,6 +44,7 @@ const Modal = ({
     { value: "MP. MARCANO", label: "MP. MARCANO" },
     { value: "MP.VILLALBA(I.COCHE)", label: "MP.VILLALBA(I.COCHE)" },
     { value: "MP.PENIN. DE MACANAO", label: "MP.PENIN. DE MACANAO" },
+    { value: "SIN UBICAR", label: "SIN UBICAR" },
   ]);
 
   const [parroquiaOptions] = useState([
@@ -71,6 +71,7 @@ const Modal = ({
     { value: "CM. BOCA DEL RIO", label: "CM. BOCA DEL RIO" },
     { value: "PQ. GUEVARA", label: "PQ. GUEVARA" },
     { value: "PQ. VICENTE FUENTES", label: "PQ. VICENTE FUENTES" },
+    { value: "SIN UBICAR", label: "SIN UBICAR" },
   ]);
 
   const [estadoOptions] = useState([
@@ -90,7 +91,6 @@ const Modal = ({
     { value: "EN APELACIÓN", label: "EN APELACIÓN" },
   ]);
 
-  // Cargar los datos de selectores solo una vez, cuando el modal se abre.
   useEffect(() => {
     if (isModalOpen) {
       fetchDireccionData();
@@ -98,7 +98,6 @@ const Modal = ({
     }
   }, [isModalOpen]);
 
-  // Modificación 1: Lógica para cargar opciones de Estructuras (igual que tu código original)
   const fetchDireccionData = async () => {
     setLoadingEstructuras(true);
     setErrorEstructuras(null);
@@ -128,7 +127,6 @@ const Modal = ({
     }
   };
 
-  // Modificación 2: Lógica para cargar opciones de Instituciones (igual que tu código original)
   const fetchAyudasCompletas = async () => {
     setLoadingInstituciones(true);
     setErrorInstituciones(null);
@@ -136,7 +134,7 @@ const Modal = ({
       const response = await api.get('/gestion_ayudas/ayudas-completas/');
       setAyudasData(response.data);
       const insts = response.data.map(i => ({
-        value: String(i.cod_institucion),
+        value: i.nombre,
         label: i.nombre
       })).sort((a, b) => a.label.localeCompare(b.label));
       setInstituciones([{ value: "", label: "Seleccione..." }, ...insts]);
@@ -149,7 +147,6 @@ const Modal = ({
     }
   };
 
-  // Cargar calles cuando cambie la estructura
   useEffect(() => {
     if (!formData.estructura || !direccionData) {
       setCalles([{ value: "", label: "Seleccione una calle" }]);
@@ -179,40 +176,37 @@ const Modal = ({
     }
   }, [formData.estructura, direccionData]);
 
-  // Modificación 3: Lógica para tipos de ayuda
   const memoizedTiposAyuda = useMemo(() => {
     if (!formData.institucion || !ayudasData) {
       return [{ value: "", label: "Seleccione un tipo" }];
     }
-    const institucion = ayudasData.find(i => String(i.cod_institucion) === formData.institucion);
+    const institucion = ayudasData.find(i => i.nombre === formData.institucion);
     if (!institucion?.tipos_ayuda?.length) {
       return [{ value: "", label: "No hay tipos disponibles" }];
     }
     const tipos = institucion.tipos_ayuda.map(t => ({
-      value: String(t.cod_ayuda),
+      value: t.nombre,
       label: t.nombre
     })).sort((a, b) => a.label.localeCompare(b.label));
     return [{ value: "", label: "Seleccione un tipo" }, ...tipos];
   }, [formData.institucion, ayudasData]);
 
-  // Modificación 4: Lógica para subtipos de ayuda
   const memoizedSubTiposAyuda = useMemo(() => {
     if (!formData.institucion || !formData.tipo || !ayudasData) {
       return [{ value: "", label: "Seleccione un subtipo" }];
     }
-    const institucion = ayudasData.find(i => String(i.cod_institucion) === formData.institucion);
-    const tipo = institucion?.tipos_ayuda?.find(t => String(t.cod_ayuda) === formData.tipo);
+    const institucion = ayudasData.find(i => i.nombre === formData.institucion);
+    const tipo = institucion?.tipos_ayuda?.find(t => t.nombre === formData.tipo);
     if (!tipo?.sub_tipos_ayuda?.length) {
       return [{ value: "", label: "No hay subtipos" }];
     }
     const subtipos = tipo.sub_tipos_ayuda.map(st => ({
-      value: String(st.cod_sub_tipo),
+      value: st.nombre,
       label: st.nombre
     })).sort((a, b) => a.label.localeCompare(b.label));
     return [{ value: "", label: "Seleccione un subtipo" }, ...subtipos];
   }, [formData.institucion, formData.tipo, ayudasData]);
 
-  // Lógica para resetear inputs dependientes
   const handleSelectChange = (name, selectedOption) => {
     const value = selectedOption ? selectedOption.value : "";
     handleInputChange({ target: { name, value } });
@@ -224,7 +218,6 @@ const Modal = ({
     }
   };
 
-  // Estilo personalizado (sin cambios)
   const customStyles = {
     control: (provided, state) => ({
       ...provided,
@@ -244,15 +237,11 @@ const Modal = ({
     menu: (provided) => ({ ...provided, zIndex: 9999 }),
   };
 
-  // Función para obtener el objeto de opción para react-select
   const getSelectedOption = (options, value) => {
-    // Si el valor está vacío, regresamos null para que el selector se muestre vacío
     if (!value) return null;
-    // Buscamos la opción por su valor
     return options.find(opt => opt.value === value) || null;
   };
 
-  // Validación local del teléfono (sin cambios)
   const validatePhone = (value) => {
     if (value && (!/^\d{10}$/.test(value) || value.length !== 10)) {
       setAlert({
@@ -366,14 +355,14 @@ const Modal = ({
                   value={formData.beneficiario}
                   onChange={handleInputGenericChange}
                   required
-                  disabled={!!formData.beneficiario}
+                  disabled={!!selectedAyuda}
                   title={
-                    formData.beneficiario
+                    selectedAyuda
                       ? "Este campo se llenó automáticamente y no puede ser modificado."
                       : ""
                   }
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.beneficiario
+                    selectedAyuda
                       ? "bg-gray-100 cursor-not-allowed"
                       : ""
                   }`}
@@ -693,7 +682,6 @@ const Modal = ({
               ></textarea>
             </div>
 
-            {/* Campo del PIN de Seguridad (solo si es requerido) */}
             {pinRequired && (
               <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-xl shadow-inner">
                 <label className="block text-base font-bold text-yellow-800 mb-2">
@@ -716,7 +704,6 @@ const Modal = ({
               </div>
             )}
 
-            {/* Mostrar código y fecha si se está editando */}
             {selectedAyuda && (
               <div className="bg-gray-50 p-4 rounded-xl">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -740,7 +727,6 @@ const Modal = ({
               </div>
             )}
 
-            {/* Botones */}
             <div className="flex justify-end space-x-4 pt-4">
               <button
                 type="button"
