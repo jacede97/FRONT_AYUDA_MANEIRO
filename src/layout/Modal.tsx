@@ -424,7 +424,7 @@ const Modal = ({
                 </select>
               </div>
 
-              {/* Fecha de Nacimiento y Teléfono */}
+              {/* Fecha de Nacimiento */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Fecha de Nacimiento
@@ -432,22 +432,19 @@ const Modal = ({
                 <input
                   type="date"
                   name="fechaNacimiento"
-                  value={formData.fechaNacimiento}
+                  value={formData.fechaNacimiento || ""}
                   onChange={handleInputGenericChange}
                   required
-                  disabled={!!formData.fechaNacimiento}
-                  title={
-                    formData.fechaNacimiento
-                      ? "Este campo se llenó automáticamente y no puede ser modificado."
-                      : ""
-                  }
+                  disabled={!!selectedAyuda && !!formData.fechaNacimiento} // Solo deshabilitar si es edición y tiene valor
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.fechaNacimiento
+                    (!!selectedAyuda && !!formData.fechaNacimiento)
                       ? "bg-gray-100 cursor-not-allowed"
                       : ""
                   }`}
                 />
               </div>
+
+              {/* Teléfono */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Teléfono

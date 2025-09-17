@@ -719,61 +719,61 @@ const ReportesAyudas: React.FC = () => {
         </div>
       </div>
 
-      {filteredReportes.length > 0 && (
-        <div className="p-4 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 bg-white rounded-lg shadow-md mt-4 border border-blue-100">
-          <div className="flex items-center space-x-2 text-sm text-gray-700">
-            <span>Mostrar</span>
-            <select
-              value={itemsPerPage}
-              onChange={handleItemsPerPageChange}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0069B6] focus:ring focus:ring-[#0069B6] focus:ring-opacity-50 py-1.5 bg-white text-gray-900"
-            >
-              <option value="10">10</option>
-              <option value="20">20</option>
-              <option value="50">50</option>
-              <option value="100">100</option>
-              <option value="1000">1000</option>
-            </select>
-          </div>
-
-          <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-            <button
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-              className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Anterior
-            </button>
-            {getPageNumbers().map((pageNumber, index) =>
-              typeof pageNumber === "number" ? (
-                <button
-                  key={index}
-                  onClick={() => handlePageChange(pageNumber)}
-                  className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${
-                    pageNumber === currentPage ? "z-10 bg-[#0069B6] border-[#0069B6] text-white" : "bg-white text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNumber}
-                </button>
-              ) : (
-                <span
-                  key={index}
-                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700"
-                >
-                  {pageNumber}
-                </span>
-              )
-            )}
-            <button
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-              className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Siguiente
-            </button>
-          </nav>
+    {filteredReportes.length > 0 && (
+      <div className="p-4 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 bg-white rounded-lg shadow-md mt-4 border border-blue-100">
+        <div className="flex items-center space-x-2 text-sm text-gray-700">
+          <span>Mostrar</span>
+          <select
+            value={itemsPerPage}
+            onChange={handleItemsPerPageChange}
+            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0069B6] focus:ring focus:ring-[#0069B6] focus:ring-opacity-50 py-1.5 bg-white text-gray-900"
+          >
+            <option value="10">10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="1000">1000</option>
+          </select>
         </div>
-      )}
+
+        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+          <button
+            onClick={() => handlePageChange(currentPage - 1)}
+            disabled={currentPage === 1}
+            className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Anterior
+          </button>
+          {getPageNumbers().map((pageNumber, index) =>
+            typeof pageNumber === "number" ? (
+              <button
+                key={index}
+                onClick={() => handlePageChange(pageNumber)}
+                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${
+                  pageNumber === currentPage ? "z-10 bg-[#0069B6] border-[#0069B6] text-white" : "bg-white text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {pageNumber}
+              </button>
+            ) : (
+              <span
+                key={index}
+                className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700"
+              >
+                {pageNumber}
+              </span>
+            )
+          )}
+          <button
+            onClick={() => handlePageChange(currentPage + 1)}
+            disabled={currentPage === totalPages}
+            className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Siguiente
+          </button>
+        </nav>
+      </div>
+    )}
     </div>
   );
 };

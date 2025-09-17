@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../lib/axio';
+import api from '../../lib/axio'; // Usa el axio.ts que proporcionaste
 import Select from 'react-select';
-import Cookies from 'universal-cookie';
+import Cookies from 'universal-cookie'; // Manténlo por si necesitas cookies en el futuro
 
 const cookies = new Cookies();
 
@@ -19,59 +19,43 @@ const RegistroSelectores = () => {
   const [estructuras, setEstructuras] = useState({});
   const [data, setData] = useState([]);
 
-  // === Efecto para gestionar la visibilidad de los mensajes ===
+  // Efecto para gestionar la visibilidad de los mensajes
   useEffect(() => {
     if (success) {
-      const timer = setTimeout(() => setSuccess(''), 5000); // Mensaje de éxito visible por 5 segundos
+      const timer = setTimeout(() => setSuccess(''), 5000);
       return () => clearTimeout(timer);
     }
     if (error) {
-      const timer = setTimeout(() => setError(''), 7000); // Mensaje de error visible por 7 segundos
+      const timer = setTimeout(() => setError(''), 7000);
       return () => clearTimeout(timer);
     }
-  }, [success, error]); // Se ejecuta cada vez que 'success' o 'error' cambian
+  }, [success, error]);
 
-  // === Cargar relaciones (parroquias, bloques, sectores, estructuras) ===
+  // Cargar relaciones (parroquias, bloques, sectores, estructuras)
   useEffect(() => {
     const cargarRelaciones = async () => {
       try {
-        const resParroquias = await api.get('/selectores/parroquias/municipio/4/');
-        const parroquiasMap = {};
-        resParroquias.data.forEach(p => {
-          parroquiasMap[p.cod_parroquia] = p;
-        });
-        setParroquias(parroquiasMap);
+        const [resParroquias, resBloques, resSectores, resEstructuras] = await Promise.all([
+          api.get('/selectores/parroquias/municipio/4/'), // Filtrado por municipio 4 (Maneiro)
+          api.get('/selectores/bloques/'),
+          api.get('/selectores/sectores/'),
+          api.get('/selectores/estructuras/'),
+        ]);
 
-        const resBloques = await api.get('/selectores/bloques/');
-        const bloquesMap = {};
-        resBloques.data.forEach(b => {
-          bloquesMap[b.cod_bloque] = b;
-        });
-        setBloques(bloquesMap);
-
-        const resSectores = await api.get('/selectores/sectores/');
-        const sectoresMap = {};
-        resSectores.data.forEach(s => {
-          sectoresMap[s.cod_sector] = s;
-        });
-        setSectores(sectoresMap);
-
-        const resEstructuras = await api.get('/selectores/estructuras/');
-        const estructurasMap = {};
-        resEstructuras.data.forEach(e => {
-          estructurasMap[e.cod_estructura] = e;
-        });
-        setEstructuras(estructurasMap);
+        setParroquias(Object.fromEntries(resParroquias.data.map(p => [p.cod_parroquia, p])));
+        setBloques(Object.fromEntries(resBloques.data.map(b => [b.cod_bloque, b])));
+        setSectores(Object.fromEntries(resSectores.data.map(s => [s.cod_sector, s])));
+        setEstructuras(Object.fromEntries(resEstructuras.data.map(e => [e.cod_estructura, e])));
       } catch (err) {
-        console.error('Error cargando relaciones', err);
-        setError('Error al cargar relaciones. Verifica el backend.'); // Mostrar error de carga de relaciones
+        console.error('Error cargando relaciones:', err);
+        setError(`Error al cargar relaciones: ${err.message || 'Verifica el backend'}`);
       }
     };
 
     cargarRelaciones();
   }, []);
 
-  // === Cargar datos según la pestaña ===
+  // Cargar datos según la pestaña
   useEffect(() => {
     const cargarDatos = async () => {
       setLoading(true);
@@ -80,46 +64,46 @@ const RegistroSelectores = () => {
         switch (activeTab) {
           case 'bloque':
             res = await api.get('/selectores/bloques/');
-            setData(res.data.filter(b => [9, 10].includes(b.parroquia)));
+            setData(res.data); // Temporalmente quita el filtro [9, 10] para pruebas
             break;
-
           case 'sector':
             res = await api.get('/selectores/sectores/');
-            setData(res.data.filter(s => [9, 10].includes(s.bloque)));
+            setData(res.data); // Temporalmente quita el filtro [9, 10]
             break;
-
           case 'estructura':
+            if (Object.keys(sectores).length === 0) {
+              setError('Sectores no cargados. Verifica las relaciones.');
+              break;
+            }
             res = await api.get('/selectores/estructuras/');
-            const estructurasFiltradas = res.data.filter(e => {
-              const sector = sectores[e.sector];
-              return sector && [9, 10].includes(sector.bloque);
-            });
-            setData(estructurasFiltradas);
+            setData(res.data);
             break;
-
           case 'calle':
+            if (Object.keys(sectores).length === 0 || Object.keys(estructuras).length === 0) {
+              setError('Sectores o estructuras no cargados. Verifica las relaciones.');
+              break;
+            }
             res = await api.get('/selectores/calles/');
-            const callesFiltradas = res.data.filter(c => {
-              const estructura = estructuras[c.estructura];
-              const sector = estructura ? sectores[estructura.sector] : null;
-              return sector && [9, 10].includes(sector.bloque);
-            });
-            setData(callesFiltradas);
+            setData(res.data);
             break;
-
           default:
             setData([]);
         }
-        // No borramos el error aquí para que el timer lo gestione
+        setError(''); // Limpiar error si la carga es exitosa
       } catch (err) {
         console.error('Error al cargar datos:', err);
-        setError('Error al cargar datos. Verifica el backend y las dependencias de los filtros.');
+        setError(`Error al cargar datos: ${err.response?.data?.detail || err.message || 'Verifica el backend'}`);
       } finally {
         setLoading(false);
       }
     };
 
-    if (Object.keys(sectores).length > 0 && Object.keys(estructuras).length > 0 || activeTab === 'bloque' || activeTab === 'sector') {
+    if (
+      activeTab === 'bloque' ||
+      activeTab === 'sector' ||
+      (activeTab === 'estructura' && Object.keys(sectores).length > 0) ||
+      (activeTab === 'calle' && Object.keys(sectores).length > 0 && Object.keys(estructuras).length > 0)
+    ) {
       cargarDatos();
     }
   }, [activeTab, sectores, estructuras, bloques]);
@@ -131,8 +115,8 @@ const RegistroSelectores = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(''); // Limpiar errores previos al intentar guardar
-    setSuccess(''); // Limpiar éxitos previos al intentar guardar
+    setError('');
+    setSuccess('');
     setLoading(true);
 
     if (!form.nombre.trim()) {
@@ -146,7 +130,9 @@ const RegistroSelectores = () => {
       setLoading(false);
       return;
     }
-    
+
+    console.log('Datos enviados:', { nombre: form.nombre.trim(), extra: form.extra, activeTab });
+
     try {
       const payload = {
         nombre: form.nombre.trim(),
@@ -159,20 +145,11 @@ const RegistroSelectores = () => {
       let method = 'post';
 
       switch (activeTab) {
-        case 'bloque':
-          endpoint = '/selectores/bloques/';
-          break;
-        case 'sector':
-          endpoint = '/selectores/sectores/';
-          break;
-        case 'estructura':
-          endpoint = '/selectores/estructuras/';
-          break;
-        case 'calle':
-          endpoint = '/selectores/calles/';
-          break;
-        default:
-          return;
+        case 'bloque': endpoint = '/selectores/bloques/'; break;
+        case 'sector': endpoint = '/selectores/sectores/'; break;
+        case 'estructura': endpoint = '/selectores/estructuras/'; break;
+        case 'calle': endpoint = '/selectores/calles/'; break;
+        default: return;
       }
 
       if (editingId) {
@@ -180,42 +157,22 @@ const RegistroSelectores = () => {
         endpoint += `${editingId}/`;
       }
 
-      await api[method](endpoint, payload, {
-        headers: {
-          'X-CSRFToken': cookies.get('csrftoken'),
-        },
-      });
+      const response = await api[method](endpoint, payload);
 
       setSuccess(`✅ ${activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} guardado correctamente.`);
       resetForm();
       refrescarDatos();
     } catch (err) {
+      console.error('Error en handleSubmit:', err);
       const errorData = err.response?.data;
-      let errorMsg = 'Error al procesar.';
-
-      if (typeof errorData === 'object') {
-          errorMsg = Object.entries(errorData)
-              .map(([key, value]) => {
-                  const fieldName = {
-                      'cod_bloque': 'Código del Bloque',
-                      'cod_sector': 'Código del Sector',
-                      'cod_estructura': 'Código de la Estructura',
-                      'cod_calle': 'Código de la Calle',
-                      'nombre': 'Nombre',
-                      'parroquia': 'Parroquia',
-                      'bloque': 'Bloque',
-                      'sector': 'Sector',
-                      'estructura': 'Estructura'
-                  }[key] || key;
-                  return `${fieldName}: ${Array.isArray(value) ? value.join(', ') : value}`;
-              })
-              .join('; ');
-      } else if (typeof errorData === 'string') {
-          errorMsg = errorData;
-      } else if (err.message) { // Capturar errores de red o genéricos de Axios
-          errorMsg = err.message;
+      let errorMsg = 'Error al procesar la solicitud.';
+      if (errorData) {
+        errorMsg = Object.entries(errorData)
+          .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
+          .join('; ');
+      } else if (err.message) {
+        errorMsg = err.message;
       }
-
       setError(errorMsg);
     } finally {
       setLoading(false);
@@ -224,38 +181,27 @@ const RegistroSelectores = () => {
 
   const handleEdit = (item) => {
     const id = item.cod_bloque || item.cod_sector || item.cod_estructura || item.cod_calle;
-    const nombre = item.nombre; 
+    const nombre = item.nombre;
 
     let relacionId = '';
     switch (activeTab) {
-      case 'bloque':
-        relacionId = item.parroquia?.toString() || '';
-        break;
-      case 'sector':
-        relacionId = item.bloque?.toString() || '';
-        break;
-      case 'estructura':
-        relacionId = item.sector?.toString() || '';
-        break;
-      case 'calle':
-        relacionId = item.estructura?.toString() || '';
-        break;
+      case 'bloque': relacionId = item.parroquia?.toString() || ''; break;
+      case 'sector': relacionId = item.bloque?.toString() || ''; break;
+      case 'estructura': relacionId = item.sector?.toString() || ''; break;
+      case 'calle': relacionId = item.estructura?.toString() || ''; break;
     }
 
     setEditingId(id);
-    setForm({
-      nombre: nombre,
-      extra: relacionId,
-    });
-    setError(''); // Limpiar errores al iniciar la edición
-    setSuccess(''); // Limpiar éxitos al iniciar la edición
+    setForm({ nombre, extra: relacionId });
+    setError('');
+    setSuccess('');
   };
 
   const handleDelete = async (id, tipo) => {
     if (!window.confirm('¿Estás seguro de eliminar este registro? Esto eliminará todos los registros dependientes.')) return;
 
-    setError(''); // Limpiar errores previos al intentar eliminar
-    setSuccess(''); // Limpiar éxitos previos al intentar eliminar
+    setError('');
+    setSuccess('');
     setLoading(true);
 
     try {
@@ -268,16 +214,12 @@ const RegistroSelectores = () => {
         default: return;
       }
 
-      await api.delete(endpoint, {
-        headers: {
-          'X-CSRFToken': cookies.get('csrftoken'),
-        },
-      });
+      await api.delete(endpoint);
       setSuccess('✅ Registro eliminado correctamente.');
       refrescarDatos();
     } catch (err) {
       console.error('Error al eliminar:', err);
-      setError('Error al eliminar. Puede que haya registros dependientes o un problema de conexión.');
+      setError(`Error al eliminar: ${err.response?.data?.detail || err.message || 'Puede que haya registros dependientes o un problema de conexión'}`);
     } finally {
       setLoading(false);
     }
@@ -286,46 +228,47 @@ const RegistroSelectores = () => {
   const resetForm = () => {
     setForm({ nombre: '', extra: '' });
     setEditingId(null);
-    setError(''); // Limpiar errores al resetear
-    setSuccess(''); // Limpiar éxitos al resetear
+    setError('');
+    setSuccess('');
   };
 
   const refrescarDatos = () => {
     const cargarDatos = async () => {
-      setLoading(true); // Indicar que se están recargando los datos
+      setLoading(true);
       try {
         let res;
         switch (activeTab) {
           case 'bloque':
             res = await api.get('/selectores/bloques/');
-            setData(res.data.filter(b => [9, 10].includes(b.parroquia)));
+            setData(res.data);
             break;
           case 'sector':
             res = await api.get('/selectores/sectores/');
-            setData(res.data.filter(s => [9, 10].includes(s.bloque)));
+            setData(res.data);
             break;
           case 'estructura':
+            if (Object.keys(sectores).length === 0) {
+              setError('Sectores no cargados. Verifica las relaciones.');
+              break;
+            }
             res = await api.get('/selectores/estructuras/');
-            setData(res.data.filter(e => {
-              const sector = sectores[e.sector];
-              return sector && [9, 10].includes(sector.bloque);
-            }));
+            setData(res.data);
             break;
           case 'calle':
+            if (Object.keys(sectores).length === 0 || Object.keys(estructuras).length === 0) {
+              setError('Sectores o estructuras no cargados. Verifica las relaciones.');
+              break;
+            }
             res = await api.get('/selectores/calles/');
-            setData(res.data.filter(c => {
-              const estructura = estructuras[c.estructura];
-              const sector = estructura ? sectores[estructura.sector] : null;
-              return sector && [9, 10].includes(sector.bloque);
-            }));
+            setData(res.data);
             break;
         }
-        setError(''); // Limpiar error si la recarga de datos es exitosa
+        setError('');
       } catch (err) {
         console.error('Error al recargar datos:', err);
-        setError('Error al recargar datos. Podría haber un problema con la API.');
+        setError(`Error al recargar datos: ${err.response?.data?.detail || err.message || 'Podría haber un problema con la API'}`);
       } finally {
-        setLoading(false); // Finalizar la carga de datos
+        setLoading(false);
       }
     };
     cargarDatos();
@@ -335,32 +278,32 @@ const RegistroSelectores = () => {
     let options = [];
     let label = '';
     let valueKey = '';
-    let nameKey = 'nombre'; 
+    let nameKey = 'nombre';
 
     switch (activeTab) {
       case 'bloque':
         options = Object.values(parroquias);
         label = 'Parroquia';
         valueKey = 'cod_parroquia';
-        nameKey = 'nombre'; // Usar 'nombre' de la API
+        nameKey = 'nombre';
         break;
       case 'sector':
         options = Object.values(bloques);
         label = 'Bloque';
         valueKey = 'cod_bloque';
-        nameKey = 'nombre'; 
+        nameKey = 'nombre';
         break;
       case 'estructura':
         options = Object.values(sectores);
         label = 'Sector';
         valueKey = 'cod_sector';
-        nameKey = 'nombre'; 
+        nameKey = 'nombre';
         break;
       case 'calle':
         options = Object.values(estructuras);
         label = 'Estructura';
         valueKey = 'cod_estructura';
-        nameKey = 'nombre'; 
+        nameKey = 'nombre';
         break;
       default:
         return null;
@@ -368,7 +311,7 @@ const RegistroSelectores = () => {
 
     const selectOptions = options.map(opt => ({
       value: opt[valueKey],
-      label: opt[nameKey], 
+      label: opt[nameKey],
     }));
 
     const selectedOption = selectOptions.find(opt => opt.value.toString() === form.extra) || null;
@@ -424,23 +367,23 @@ const RegistroSelectores = () => {
           {data.length === 0 ? (
             <tr>
               <td colSpan={headers.length + 1} className="py-4 text-center text-gray-500">
-                No hay registros.
+                No hay registros. {error && `(${error})`}
               </td>
             </tr>
           ) : (
             data.map((item) => {
               const id = item.cod_bloque || item.cod_sector || item.cod_estructura || item.cod_calle;
-              const nombre = item.nombre; 
+              const nombre = item.nombre;
 
               let relacionNombre = '';
               if (activeTab === 'bloque') {
-                relacionNombre = parroquias[item.parroquia]?.nombre || 'Desconocido'; 
+                relacionNombre = parroquias[item.parroquia]?.nombre || 'Desconocido';
               } else if (activeTab === 'sector') {
-                relacionNombre = bloques[item.bloque]?.nombre || 'Desconocido'; 
+                relacionNombre = bloques[item.bloque]?.nombre || 'Desconocido';
               } else if (activeTab === 'estructura') {
-                relacionNombre = sectores[item.sector]?.nombre || 'Desconocido'; 
+                relacionNombre = sectores[item.sector]?.nombre || 'Desconocido';
               } else if (activeTab === 'calle') {
-                relacionNombre = estructuras[item.estructura]?.nombre || 'Desconocido'; 
+                relacionNombre = estructuras[item.estructura]?.nombre || 'Desconocido';
               }
 
               return (
@@ -470,7 +413,6 @@ const RegistroSelectores = () => {
       </table>
     );
   };
-
 
   return (
     <div className="p-6 max-w-6xl mx-auto bg-gray-50 min-h-screen font-sans">
