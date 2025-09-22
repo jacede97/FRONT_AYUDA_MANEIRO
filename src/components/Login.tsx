@@ -28,7 +28,7 @@ const Login = ({ onLoginSuccess }) => {
                 // Segundo gradiente azulado
                 [{ color: '#0D47A1', pos: 0 }, { color: '#1E88E5', pos: 1 }],
               ],
-              transitionSpeed: 1500, // Velocidad de transición
+              transitionSpeed: 2000, // Velocidad de transición
             },
           },
         });
