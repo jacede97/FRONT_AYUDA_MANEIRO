@@ -1,29 +1,73 @@
 // src/components/Login.js
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // Para redirección
+import React, { useState, useEffect, useRef } from 'react';
 import api from '../lib/axio.tsx'; // Importa tu instancia de axios
+import Granim from 'granim'; // Importa Granim
 
 const Login = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState(localStorage.getItem('remembered_username') || '');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(!!localStorage.getItem('remember_me'));
-  const navigate = useNavigate();
 
-  // Restaurar sesión si "remember_me" está activo
+  const canvasRef = useRef(null); // Ref para el canvas de Granim
+
+  // Inicializar Granim en useEffect con degradado azulado más variado
   useEffect(() => {
-    const remembered = localStorage.getItem('remember_me');
-    const accessToken = localStorage.getItem('access_token');
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (remembered && accessToken && refreshToken) {
-      onLoginSuccess();
-      navigate('/dashboard');
+    if (canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      try {
+        const granimInstance = new Granim({
+          element: canvasRef.current,
+          direction: 'left-right', // Movimiento horizontal
+          isPausedWhenNotInView: true,
+          states: {
+            'default-state': {
+              gradients: [
+                // Primer gradiente azulado simplificado
+                [{ color: '#E3F2FD', pos: 0 }, { color: '#64B5F6', pos: 1 }],
+                // Segundo gradiente azulado
+                [{ color: '#0D47A1', pos: 0 }, { color: '#1E88E5', pos: 1 }],
+              ],
+              transitionSpeed: 1500, // Velocidad de transición
+            },
+          },
+        });
+        canvasRef.current.style.backgroundColor = ''; // Limpia el fallback si funciona
+        return () => granimInstance.destroy(); // Cleanup
+      } catch (error) {
+        console.error('Error inicializando Granim:', error);
+        canvasRef.current.style.backgroundColor = '#E3F2FD'; // Fallback a azul muy claro
+      }
     }
-  }, [onLoginSuccess, navigate]);
+  }, []);
+
+  // Efecto para renovar el token automáticamente
+  useEffect(() => {
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+      const refresh = async () => {
+        try {
+          const response = await api.post('/auth/refresh/', { refresh: refreshToken });
+          localStorage.setItem('access_token', response.data.access);
+          console.log('Token renovado exitosamente');
+        } catch (err) {
+          console.error('Error renovando token:', err);
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          localStorage.removeItem('user');
+          onLoginSuccess(); // Redirige al login
+        }
+      };
+
+      const interval = setInterval(refresh, 5 * 60 * 1000); // Renueva cada 5 minutos
+      refresh(); // Llama inmediatamente al iniciar
+      return () => clearInterval(interval); // Limpia el intervalo al desmontar
+    }
+  }, [onLoginSuccess]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    console.time('Login Request');
     setLoginError('');
     setLoading(true);
     try {
@@ -31,22 +75,10 @@ const Login = ({ onLoginSuccess }) => {
         username: username.trim(),
         password: password,
       });
-      // Guarda los tokens y datos del usuario
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);
       localStorage.setItem('user', JSON.stringify(response.data.user));
-
-      // Si "Recordar contraseña" está marcado, guarda el indicador y el username (NO la contraseña)
-      if (rememberMe) {
-        localStorage.setItem('remember_me', 'true');
-        localStorage.setItem('remembered_username', username.trim());
-      } else {
-        localStorage.removeItem('remember_me');
-        localStorage.removeItem('remembered_username');
-      }
-
       onLoginSuccess();
-      navigate('/dashboard');
     } catch (err) {
       if (err.response?.data?.detail) {
         setLoginError(err.response.data.detail);
@@ -55,12 +87,21 @@ const Login = ({ onLoginSuccess }) => {
       }
     } finally {
       setLoading(false);
+      console.timeEnd('Login Request');
     }
   };
 
   return (
-    <div className="h-screen bg-gradient-to-br from-[#0095D4] to-[#003578] flex items-center justify-center p-4 font-sans">
-      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-blue-100">
+    <div className="h-screen flex items-center justify-center p-4 font-sans relative overflow-hidden">
+      {/* Canvas para Granim.js con dimensiones explícitas */}
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 w-full h-full z-0"
+        style={{ width: '100vw', height: '100vh' }} // Dimensiones absolutas
+      />
+      
+      {/* Contenido del formulario */}
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-blue-100 relative z-10">
         <div className="text-center mb-6">
           <img
             src="/LOGO.png"
@@ -78,39 +119,26 @@ const Login = ({ onLoginSuccess }) => {
             <label className="block text-sm font-medium text-gray-700 mb-2">Usuario</label>
             <input
               type="text"
-              name="username"  // Añadido para autocompletado del navegador
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6]"
               placeholder="Ej: USUARIO"
               required
               autoFocus
-              autoComplete="username"  // Para autocompletado
+              autoComplete="username"
             />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
             <input
               type="password"
-              name="password"  // Añadido para autocompletado del navegador
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6]"
               placeholder="Ingrese su contraseña"
               required
-              autoComplete="current-password"  // Para autocompletado
+              autoComplete="current-password"
             />
-          </div>
-          <div className="flex items-center justify-between">
-            <label className="flex items-center text-sm text-gray-700">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-                className="mr-2 h-4 w-4 text-[#0069B6] focus:ring-[#0095D4] border-gray-300 rounded"
-              />
-              Recordar usuario
-            </label>
           </div>
           {loginError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
@@ -119,10 +147,36 @@ const Login = ({ onLoginSuccess }) => {
           )}
           <button
             type="submit"
-            className="w-full bg-[#0069B6] text-white py-2 px-4 rounded-xl hover:bg-[#003578] focus:ring-4 focus:ring-[#0095D4] transition-all font-medium transform hover:scale-105 hover:shadow-xl disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full bg-[#0069B6] text-white py-2 px-4 rounded-xl hover:bg-[#003578] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             disabled={loading}
           >
-            {loading ? 'Iniciando' : 'Iniciar Sesión'}
+            {loading ? (
+              <>
+                <svg
+                  className="animate-spin h-5 w-5 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Iniciando...
+              </>
+            ) : (
+              'Iniciar Sesión'
+            )}
           </button>
         </form>
         <div className="text-center mt-4 text-sm text-gray-500">
