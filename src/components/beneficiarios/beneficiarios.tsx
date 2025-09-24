@@ -29,17 +29,25 @@ const Beneficiarios: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [cedulaFilter, setCedulaFilter] = useState<string>("");
+  const [textFilter, setTextFilter] = useState<string>("");
   const [debouncedCedula, setDebouncedCedula] = useState<string>("");
+  const [debouncedText, setDebouncedText] = useState<string>("");
   const [page, setPage] = useState<number>(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 10; // Número de grupos por página
 
-  // Debounce para el input de búsqueda
+  // Debounce para los inputs de búsqueda
   useEffect(() => {
-    const handler = setTimeout(() => {
+    const handlerCedula = setTimeout(() => {
       setDebouncedCedula(cedulaFilter);
     }, 300);
-    return () => clearTimeout(handler);
-  }, [cedulaFilter]);
+    const handlerText = setTimeout(() => {
+      setDebouncedText(textFilter);
+    }, 300);
+    return () => {
+      clearTimeout(handlerCedula);
+      clearTimeout(handlerText);
+    };
+  }, [cedulaFilter, textFilter]);
 
   // Fetch los datos de la API
   useEffect(() => {
@@ -50,7 +58,11 @@ const Beneficiarios: React.FC = () => {
           throw new Error("Error al obtener los datos de la API");
         }
         const data: Beneficiario[] = await response.json();
-        setBeneficiarios(data);
+        // Eliminar posibles duplicados globales basados en id
+        const uniqueData = Array.from(
+          new Map(data.map((item) => [item.id, item])).values()
+        );
+        setBeneficiarios(uniqueData);
         setLoading(false);
       } catch (err) {
         setError("No se pudo cargar la lista de beneficiarios.");
@@ -60,34 +72,78 @@ const Beneficiarios: React.FC = () => {
     fetchData();
   }, []);
 
-  // Filtrar beneficiarios por cédula (memoizado)
+  // Filtrar beneficiarios por cédula y texto (memoizado)
   const filteredBeneficiarios = useMemo(() => {
-    return debouncedCedula
-      ? beneficiarios.filter((b) => b.cedula.includes(debouncedCedula))
-      : beneficiarios;
-  }, [beneficiarios, debouncedCedula]);
+    return beneficiarios.filter((b) => {
+      const matchesCedula = debouncedCedula
+        ? b.cedula.toLowerCase().includes(debouncedCedula.trim().toLowerCase())
+        : true;
+      const matchesText = debouncedText
+        ? [
+            b.beneficiario,
+            b.estructura,
+            b.codigo,
+            b.observacion,
+            b.tipo,
+            b.subtipo,
+            b.institucion,
+          ]
+            .join(" ")
+            .toLowerCase()
+            .includes(debouncedText.trim().toLowerCase())
+        : true;
+      return matchesCedula && matchesText;
+    });
+  }, [beneficiarios, debouncedCedula, debouncedText]);
 
-  // Paginación en el frontend
-  const paginatedBeneficiarios = useMemo(() => {
+  // Agrupar por cédula y nombre normalizados, eliminando duplicados por código
+  const groupedByCedula = useMemo(() => {
+    const groups = filteredBeneficiarios.reduce((acc, curr) => {
+      const normalizedKey = `${curr.cedula.trim()}-${curr.beneficiario.trim().toUpperCase()}`;
+      if (!acc[normalizedKey]) {
+        acc[normalizedKey] = new Map<string, Beneficiario>(); // Usar Map para evitar duplicados por código
+      }
+      // Solo agregar si no existe un registro con el mismo código, o si el actual es más reciente
+      const existing = acc[normalizedKey].get(curr.codigo);
+      if (!existing || new Date(curr.fecha_registro) > new Date(existing.fecha_registro)) {
+        acc[normalizedKey].set(curr.codigo, curr);
+      }
+      return acc;
+    }, {} as Record<string, Map<string, Beneficiario>>);
+
+    // Convertir Map a array y ordenar por código (ascendente)
+    const result = {};
+    for (const [key, value] of Object.entries(groups)) {
+      result[key] = Array.from(value.values()).sort((a, b) => a.codigo.localeCompare(b.codigo));
+    }
+    return result as Record<string, Beneficiario[]>;
+  }, [filteredBeneficiarios]);
+
+  // Convertir los grupos en un array y ordenarlos por el código más alto (descendente)
+  const groupedArray = useMemo(() => {
+    return Object.entries(groupedByCedula)
+      .map(([key, registros]) => {
+        // Encontrar el código más alto en el grupo
+        const maxCodigo = registros.reduce((max, curr) =>
+          curr.codigo.localeCompare(max) > 0 ? curr.codigo : max,
+          registros[0]?.codigo || ""
+        );
+        // Extraer la parte numérica del código más alto (por ejemplo, "999" de "AYU-999")
+        const maxNumero = parseInt(maxCodigo.replace("AYU-", ""), 10) || 0;
+        return { key, registros, maxNumero };
+      })
+      .sort((a, b) => b.maxNumero - a.maxNumero); // Ordenar grupos por número más alto (descendente)
+  }, [groupedByCedula]);
+
+  // Paginación de los grupos
+  const paginatedGroups = useMemo(() => {
     const start = (page - 1) * itemsPerPage;
     const end = start + itemsPerPage;
-    return filteredBeneficiarios.slice(start, end);
-  }, [filteredBeneficiarios, page]);
+    return groupedArray.slice(start, end);
+  }, [groupedArray, page]);
 
-  // Agrupar por cédula (memoizado)
-  const groupedByCedula = useMemo(() => {
-    return paginatedBeneficiarios.reduce((acc, curr) => {
-      const key = `${curr.cedula}-${curr.beneficiario}`;
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-      acc[key].push(curr);
-      return acc;
-    }, {} as Record<string, Beneficiario[]>);
-  }, [paginatedBeneficiarios]);
-
-  // Calcular número total de páginas
-  const totalPages = Math.ceil(filteredBeneficiarios.length / itemsPerPage);
+  // Calcular número total de páginas (basado en grupos)
+  const totalPages = Math.ceil(groupedArray.length / itemsPerPage);
 
   // Manejar cambio de página
   const handlePageChange = useCallback((newPage: number) => {
@@ -113,25 +169,40 @@ const Beneficiarios: React.FC = () => {
         </div>
       )}
 
-      {/* Buscador por cédula */}
-      <div className="mb-4 sm:mb-6">
-        <label htmlFor="cedulaFilter" className="block text-sm font-medium text-gray-700">
-          Buscar por cédula:
-        </label>
-        <input
-          type="text"
-          id="cedulaFilter"
-          value={cedulaFilter}
-          onChange={(e) => setCedulaFilter(e.target.value)}
-          placeholder="Ej. 16035145"
-          className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#003366] focus:border-[#003366] text-base"
-        />
+      {/* Dos buscadores */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-4 sm:mb-6">
+        <div className="w-full sm:w-1/2">
+          <label htmlFor="cedulaFilter" className="block text-sm font-medium text-gray-700">
+            Buscar por Cédula
+          </label>
+          <input
+            type="text"
+            id="cedulaFilter"
+            value={cedulaFilter}
+            onChange={(e) => setCedulaFilter(e.target.value)}
+            placeholder="Cédula..."
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#003366] focus:border-[#003366] text-base"
+          />
+        </div>
+        <div className="w-full sm:w-1/2">
+          <label htmlFor="textFilter" className="block text-sm font-medium text-gray-700">
+            Buscar por Texto
+          </label>
+          <input
+            type="text"
+            id="textFilter"
+            value={textFilter}
+            onChange={(e) => setTextFilter(e.target.value)}
+            placeholder="Nombre, estructura, código, etc."
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#003366] focus:border-[#003366] text-base"
+          />
+        </div>
       </div>
 
       {/* Lista de beneficiarios */}
       {!loading && !error && (
         <div className="max-h-[500px] overflow-y-auto rounded-lg shadow-sm">
-          {Object.entries(groupedByCedula).map(([key, registros]) => {
+          {paginatedGroups.map(({ key, registros }) => {
             const [cedula, beneficiario] = key.split("-");
             return (
               <div key={cedula} className="mb-6 sm:mb-8">
@@ -142,7 +213,7 @@ const Beneficiarios: React.FC = () => {
                 {/* Tabla para pantallas medianas y grandes */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="min-w-full bg-white border border-gray-200 rounded-lg">
-                    <thead className="bg-[#003366] text-white sticky top-0 z-10">
+                    <thead className="bg-gradient-to-r from-[#003366] to-[#005599] text-white sticky top-0 z-10 shadow-md">
                       <tr>
                         <th className="py-2 px-4 text-left text-sm font-medium">Código</th>
                         <th className="py-2 px-4 text-left text-sm font-medium">Tipo</th>
@@ -205,7 +276,7 @@ const Beneficiarios: React.FC = () => {
       )}
 
       {/* Controles de paginación */}
-      {!loading && !error && filteredBeneficiarios.length > 0 && (
+      {!loading && !error && groupedArray.length > 0 && (
         <div className="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
           <button
             onClick={() => handlePageChange(page - 1)}
@@ -227,9 +298,9 @@ const Beneficiarios: React.FC = () => {
         </div>
       )}
 
-      {filteredBeneficiarios.length === 0 && !loading && !error && (
+      {groupedArray.length === 0 && !loading && !error && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-blue-800 text-sm">
-          🔔 <strong>Nota:</strong> No se encontraron beneficiarios con esa cédula.
+          🔔 <strong>Nota:</strong> No se encontraron beneficiarios con esos criterios.
         </div>
       )}
     </div>

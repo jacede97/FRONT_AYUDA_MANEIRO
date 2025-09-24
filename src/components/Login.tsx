@@ -1,73 +1,42 @@
-// src/components/Login.js
-import React, { useState, useEffect, useRef } from 'react';
-import api from '../lib/axio.tsx'; // Importa tu instancia de axios
-import Granim from 'granim'; // Importa Granim
+import React, { useState, useRef, useEffect } from 'react';
+import Granim from 'granim';
+import api from '../lib/axio.tsx';
+import { useAuth } from '../context/AuthContext';
 
-const Login = ({ onLoginSuccess }) => {
+const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const { login } = useAuth();
 
-  const canvasRef = useRef(null); // Ref para el canvas de Granim
-
-  // Inicializar Granim en useEffect con degradado azulado más variado
   useEffect(() => {
     if (canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
       try {
         const granimInstance = new Granim({
           element: canvasRef.current,
-          direction: 'left-right', // Movimiento horizontal
+          direction: 'left-right',
           isPausedWhenNotInView: true,
           states: {
             'default-state': {
               gradients: [
-                // Primer gradiente azulado simplificado
                 [{ color: '#E3F2FD', pos: 0 }, { color: '#64B5F6', pos: 1 }],
-                // Segundo gradiente azulado
                 [{ color: '#0D47A1', pos: 0 }, { color: '#1E88E5', pos: 1 }],
               ],
-              transitionSpeed: 2000, // Velocidad de transición
+              transitionSpeed: 2000,
             },
           },
         });
-        canvasRef.current.style.backgroundColor = ''; // Limpia el fallback si funciona
-        return () => granimInstance.destroy(); // Cleanup
+        return () => granimInstance.destroy();
       } catch (error) {
         console.error('Error inicializando Granim:', error);
-        canvasRef.current.style.backgroundColor = '#E3F2FD'; // Fallback a azul muy claro
       }
     }
   }, []);
 
-  // Efecto para renovar el token automáticamente
-  useEffect(() => {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (refreshToken) {
-      const refresh = async () => {
-        try {
-          const response = await api.post('/auth/refresh/', { refresh: refreshToken });
-          localStorage.setItem('access_token', response.data.access);
-          console.log('Token renovado exitosamente');
-        } catch (err) {
-          console.error('Error renovando token:', err);
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user');
-          onLoginSuccess(); // Redirige al login
-        }
-      };
-
-      const interval = setInterval(refresh, 5 * 60 * 1000); // Renueva cada 5 minutos
-      refresh(); // Llama inmediatamente al iniciar
-      return () => clearInterval(interval); // Limpia el intervalo al desmontar
-    }
-  }, [onLoginSuccess]);
-
-  const handleLogin = async (e) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.time('Login Request');
     setLoginError('');
     setLoading(true);
     try {
@@ -75,11 +44,8 @@ const Login = ({ onLoginSuccess }) => {
         username: username.trim(),
         password: password,
       });
-      localStorage.setItem('access_token', response.data.access);
-      localStorage.setItem('refresh_token', response.data.refresh);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      onLoginSuccess();
-    } catch (err) {
+      login(response.data);
+    } catch (err: any) {
       if (err.response?.data?.detail) {
         setLoginError(err.response.data.detail);
       } else {
@@ -87,20 +53,13 @@ const Login = ({ onLoginSuccess }) => {
       }
     } finally {
       setLoading(false);
-      console.timeEnd('Login Request');
     }
   };
 
   return (
     <div className="h-screen flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      {/* Canvas para Granim.js con dimensiones explícitas */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 w-full h-full z-0"
-        style={{ width: '100vw', height: '100vh' }} // Dimensiones absolutas
-      />
-      
-      {/* Contenido del formulario */}
+      <canvas ref={canvasRef} className="absolute inset-0 w-full h-full z-0" />
+
       <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm border border-blue-100 relative z-10">
         <div className="text-center mb-6">
           <img

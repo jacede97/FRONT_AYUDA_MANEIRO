@@ -673,7 +673,7 @@ const Dashboard = () => {
                 Nuevo
               </button>
               <button
-                onClick={() => selectedAyuda && requirePinForAction("edit")}
+                onClick={() => selectedAyuda && openModal(selectedAyuda)}
                 disabled={!selectedAyuda}
                 className={`px-4 py-2 rounded-xl font-medium flex items-center shadow-lg text-sm transition-all transform hover:scale-105 ${
                   selectedAyuda
