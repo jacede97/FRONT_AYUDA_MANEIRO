@@ -3,8 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./components/Login";
 import Dashboard from "./components/dashboard/dashboard";
-import Menu from "./layout/Menu";
 import Header from "./layout/Header";
+import Menu from "./layout/Menu";
 import ReportesAyudas from "./components/report/ReportesAyudas";
 import Beneficiarios from "./components/beneficiarios/beneficiarios";
 import RegistroUsuario from "./components/RegistroUsuario/RegistroUsuario";
@@ -37,7 +37,6 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const MainContent = () => {
   const { isLoggedIn, user, logout } = useAuth();
   const userRole = user?.role || "basico";
-
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const toggleMenu = () => {
@@ -57,23 +56,11 @@ const MainContent = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header 
-        toggleMenu={toggleMenu} 
-        user={user} 
-        handleLogout={logout} 
-        isMenuOpen={isMenuOpen} 
-        userRole={userRole} 
-      />
+      <Header user={user} userRole={userRole} toggleMenu={toggleMenu} isMenuOpen={isMenuOpen} />
       <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         <div className="bg-white rounded-xl shadow-lg overflow-hidden flex flex-col lg:flex-row h-full">
-          <Menu 
-            isMenuOpen={isMenuOpen} 
-            toggleMenu={toggleMenu} 
-            handleLogout={logout}
-            userRole={userRole}
-          />
-          {isLoggedIn && <div className="w-px bg-gray-200 hidden lg:block"></div>}
-          <div className="flex-1 overflow-auto p-4">
+          <Menu isMenuOpen={isMenuOpen} toggleMenu={toggleMenu} handleLogout={logout} userRole={userRole} />
+          <div className="flex-1 overflow-auto p-4 lg:ml-4">
             <Routes>
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["admin", "recepcion", "seguimiento", "consultor", "supervisor", "auditor", "basico"]}><Dashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "seguimiento", "consultor"]}><ReportesAyudas /></ProtectedRoute>} />
