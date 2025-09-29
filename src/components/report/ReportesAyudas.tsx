@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import Dexie from "dexie"; // Asegúrate de tener 'npm install dexie'
 
 // Define la interfaz para la estructura de un reporte de ayuda
 interface Ayuda {
@@ -60,6 +61,12 @@ const ReportesAyudas: React.FC = () => {
   const tableRef = useRef<HTMLTableElement>(null);
   const contentWidthRef = useRef<HTMLDivElement>(null);
 
+  // Inicializar Dexie para IndexedDB
+  const db = new Dexie("ReportesDB");
+  db.version(1).stores({
+    reportes: "++id, timestamp",
+  });
+
   const displayMessage = (text: string, type: "success" | "error" | "info") => {
     setMessage({ text, type });
     setShowMessage(true);
@@ -107,45 +114,156 @@ const ReportesAyudas: React.FC = () => {
     }
   }, [filteredReportes]);
 
-  useEffect(() => {
-    const fetchReportes = async () => {
+  const fetchReportes = async (showAlert = true, force = false, retries = 3) => {
+    console.log("INTENTANDO: Cargar reportes...");
+    const cacheExpiration = 86400000; // 24 horas en milisegundos
+
+    // Intentar cargar desde Dexie (IndexedDB)
+    if (!force) {
+      try {
+        const cached = await db.table("reportes").orderBy("timestamp").last();
+        if (cached && Date.now() - cached.timestamp < cacheExpiration) {
+          console.log("ÉXITO: Cargando desde IndexedDB");
+          setAllReportes(cached.data);
+          setFilteredReportes(cached.data);
+          compareWithApi(cached.data);
+          setLoading(false); // Marcar como no cargando si usa caché
+          return;
+        }
+      } catch (e) {
+        console.warn("Error al cargar desde IndexedDB:", e);
+      }
+    }
+
+    // Intentar cargar desde la API con reintentos
+    const fetchWithRetry = async (attempt = 0) => {
       try {
         setLoading(true);
         setError(null);
-
         const API_URL = "https://maneiro-api-mem1.onrender.com/api/";
-        const response = await axios.get<Ayuda[]>(API_URL);
+        const response = await axios.get<Ayuda[]>(API_URL, { timeout: 30000 }); // 30 segundos de timeout
 
         const fetchedData = Array.isArray(response.data)
-          ? response.data
-          : (response.data as any).results || [];
+          ? response.data.map((item) => ({
+              ...item,
+              fechaNacimiento: item.fechaNacimiento || null,
+              fecha_registro: item.fecha_registro || new Date().toISOString(),
+              fecha_actualizacion: item.fecha_actualizacion || new Date().toISOString(),
+            }))
+          : (response.data as any).results?.map((item) => ({
+              ...item,
+              fechaNacimiento: item.fechaNacimiento || null,
+              fecha_registro: item.fecha_registro || new Date().toISOString(),
+              fecha_actualizacion: item.fecha_actualizacion || new Date().toISOString(),
+            })) || [];
 
+        await db.table("reportes").put({ id: Date.now(), data: fetchedData, timestamp: Date.now() });
         setAllReportes(fetchedData);
         setFilteredReportes(fetchedData);
+
+        if (showAlert) {
+          displayMessage("Datos cargados exitosamente.", "success");
+        }
       } catch (err) {
-        console.error("Error al cargar los reportes desde Django:", err);
-        if (axios.isAxiosError(err)) {
-          const errorMessage = err.response?.data
-            ? JSON.stringify(err.response.data)
-            : err.message;
-          setError(
-            `No se pudieron cargar los reportes: ${errorMessage}. Por favor, verifique la URL de la API y el estado del backend de Django.`
-          );
-        } else if (err instanceof Error) {
-          setError(
-            `No se pudieron cargar los reportes: ${err.message}. Por favor, intente de nuevo más tarde.`
-          );
+        if (axios.isAxiosError(err) && err.code === 'ECONNABORTED' && attempt < retries) {
+          const delay = Math.pow(2, attempt) * 1000; // Delay exponencial: 1s, 3s, 7s
+          console.warn(`Intento ${attempt + 1} falló por timeout. Reintentando en ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return fetchWithRetry(attempt + 1);
         } else {
-          setError(
-            "No se pudieron cargar los reportes debido a un error desconocido."
-          );
+          console.error("Error al cargar los reportes desde Django:", err);
+          if (axios.isAxiosError(err)) {
+            const errorMessage = err.response?.data
+              ? JSON.stringify(err.response.data)
+              : err.message;
+            setError(
+              `No se pudieron cargar los reportes: ${errorMessage}. Por favor, verifique la URL de la API y el estado del backend de Django.`
+            );
+          } else if (err instanceof Error) {
+            setError(
+              `No se pudieron cargar los reportes: ${err.message}. Por favor, intente de nuevo más tarde.`
+            );
+          } else {
+            setError(
+              "No se pudieron cargar los reportes debido a un error desconocido."
+            );
+          }
+          if (showAlert) {
+            displayMessage(
+              "Error al conectar con la API. Usando datos de caché si están disponibles.",
+              "error"
+            );
+          }
         }
       } finally {
         setLoading(false);
       }
     };
 
-    fetchReportes();
+    await fetchWithRetry();
+  };
+
+  const compareWithApi = async (cachedReportes) => {
+    try {
+      const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/", { timeout: 10000 });
+      const apiReportes = Array.isArray(response.data)
+        ? response.data.map((item) => ({
+            ...item,
+            fechaNacimiento: item.fechaNacimiento || null,
+            fecha_registro: item.fecha_registro || new Date().toISOString(),
+            fecha_actualizacion: item.fecha_actualizacion || new Date().toISOString(),
+          }))
+        : (response.data as any).results?.map((item) => ({
+            ...item,
+            fechaNacimiento: item.fechaNacimiento || null,
+            fecha_registro: item.fecha_registro || new Date().toISOString(),
+            fecha_actualizacion: item.fecha_actualizacion || new Date().toISOString(),
+          })) || [];
+
+      const hasChanges = cachedReportes.length !== apiReportes.length || 
+        !cachedReportes.every((cached) => apiReportes.some((api) => api.id === cached.id && JSON.stringify(api) === JSON.stringify(cached)));
+
+      if (hasChanges) {
+        console.log("Detectados cambios en la API, actualizando datos...");
+        const updatedReportes = apiReportes;
+        await db.table("reportes").put({ id: Date.now(), data: updatedReportes, timestamp: Date.now() });
+        setAllReportes(updatedReportes);
+        setFilteredReportes(updatedReportes);
+        displayMessage("Datos actualizados desde la API debido a cambios detectados.", "success");
+      } else {
+        console.log("No hay cambios en la API.");
+      }
+    } catch (error) {
+      console.warn("No se pudo comparar con la API en background:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchReportes(true);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        console.log("App visible, intentando refrescar datos en background...");
+        fetchReportes(false);
+      }
+    };
+
+    const checkInterval = setInterval(async () => {
+      const cached = await db.table("reportes").orderBy("timestamp").last();
+      if (cached) {
+        try {
+          compareWithApi(cached.data);
+        } catch (e) {
+          console.warn("Error al comparar con la API en intervalo:", e);
+        }
+      }
+    }, 300000); // 5 minutos
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(checkInterval);
+    };
   }, []);
 
   useEffect(() => {
@@ -414,7 +532,7 @@ const ReportesAyudas: React.FC = () => {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-white to-blue-50 p-4 font-sans rounded-xl">
         <div className="text-xl font-semibold text-gray-700 animate-pulse">
-          Cargando reportes desde Django... 📊
+          Cargando datos... (puede tardar un momento) 📊
         </div>
       </div>
     );
@@ -432,6 +550,12 @@ const ReportesAyudas: React.FC = () => {
               https://maneiro-api-mem1.onrender.com/api/
             </code>
           </p>
+          <button
+            onClick={() => fetchReportes(true, true)}
+            className="mt-4 px-4 py-2 bg-[#0095D4] text-white rounded-lg hover:bg-[#0069B6]"
+          >
+            Reintentar
+          </button>
         </div>
       </div>
     );
@@ -517,19 +641,21 @@ const ReportesAyudas: React.FC = () => {
             </ul>
           </div>
         </div>
-        <div className="mt-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">Gráfico de Total por Tipo de Ayuda</h3>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="value" fill="#0095D4" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {chartData.length > 0 && (
+          <div className="mt-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">Gráfico de Total por Tipo de Ayuda</h3>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="value" fill="#0095D4" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-lg mb-6 border border-blue-100 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -627,7 +753,6 @@ const ReportesAyudas: React.FC = () => {
         </div>
       </div>
 
-      {/* Mover el input de búsqueda fuera del condicional de la tabla */}
       <div className="bg-white p-4 rounded-lg shadow-md border border-blue-100 mb-6">
         <label htmlFor="searchQuery" className="block text-sm font-medium text-gray-700 mb-2">Buscar:</label>
         <input
@@ -719,61 +844,61 @@ const ReportesAyudas: React.FC = () => {
         </div>
       </div>
 
-    {filteredReportes.length > 0 && (
-      <div className="p-4 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 bg-white rounded-lg shadow-md mt-4 border border-blue-100">
-        <div className="flex items-center space-x-2 text-sm text-gray-700">
-          <span>Mostrar</span>
-          <select
-            value={itemsPerPage}
-            onChange={handleItemsPerPageChange}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0069B6] focus:ring focus:ring-[#0069B6] focus:ring-opacity-50 py-1.5 bg-white text-gray-900"
-          >
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-            <option value="100">100</option>
-            <option value="1000">1000</option>
-          </select>
-        </div>
+      {filteredReportes.length > 0 && (
+        <div className="p-4 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 bg-white rounded-lg shadow-md mt-4 border border-blue-100">
+          <div className="flex items-center space-x-2 text-sm text-gray-700">
+            <span>Mostrar</span>
+            <select
+              value={itemsPerPage}
+              onChange={handleItemsPerPageChange}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-[#0069B6] focus:ring focus:ring-[#0069B6] focus:ring-opacity-50 py-1.5 bg-white text-gray-900"
+            >
+              <option value="10">10</option>
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+              <option value="1000">1000</option>
+            </select>
+          </div>
 
-        <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-          <button
-            onClick={() => handlePageChange(currentPage - 1)}
-            disabled={currentPage === 1}
-            className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Anterior
-          </button>
-          {getPageNumbers().map((pageNumber, index) =>
-            typeof pageNumber === "number" ? (
-              <button
-                key={index}
-                onClick={() => handlePageChange(pageNumber)}
-                className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${
-                  pageNumber === currentPage ? "z-10 bg-[#0069B6] border-[#0069B6] text-white" : "bg-white text-gray-700 hover:bg-gray-100"
-                }`}
-              >
-                {pageNumber}
-              </button>
-            ) : (
-              <span
-                key={index}
-                className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700"
-              >
-                {pageNumber}
-              </span>
-            )
-          )}
-          <button
-            onClick={() => handlePageChange(currentPage + 1)}
-            disabled={currentPage === totalPages}
-            className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Siguiente
-          </button>
-        </nav>
-      </div>
-    )}
+          <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Anterior
+            </button>
+            {getPageNumbers().map((pageNumber, index) =>
+              typeof pageNumber === "number" ? (
+                <button
+                  key={index}
+                  onClick={() => handlePageChange(pageNumber)}
+                  className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${
+                    pageNumber === currentPage ? "z-10 bg-[#0069B6] border-[#0069B6] text-white" : "bg-white text-gray-700 hover:bg-gray-100"
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              ) : (
+                <span
+                  key={index}
+                  className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700"
+                >
+                  {pageNumber}
+                </span>
+              )
+            )}
+            <button
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Siguiente
+            </button>
+          </nav>
+        </div>
+      )}
     </div>
   );
 };

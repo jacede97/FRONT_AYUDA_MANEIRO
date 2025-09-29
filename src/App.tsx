@@ -64,7 +64,7 @@ const MainContent = () => {
             <Routes>
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={["admin", "recepcion", "seguimiento", "consultor", "supervisor", "auditor", "basico"]}><Dashboard /></ProtectedRoute>} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "seguimiento", "consultor"]}><ReportesAyudas /></ProtectedRoute>} />
-              <Route path="/beneficiarios" element={<ProtectedRoute allowedRoles={["admin", "consultor"]}><Beneficiarios /></ProtectedRoute>} />
+              <Route path="/beneficiarios" element={<ProtectedRoute allowedRoles={["admin", "consultor", "recepcion"]}><Beneficiarios /></ProtectedRoute>} /> {/* Añadido "recepcion" */}
               <Route path="/selectores" element={<ProtectedRoute allowedRoles={["admin"]}><RegistroSelectores /></ProtectedRoute>} />
               <Route path="/adminAyudas" element={<ProtectedRoute allowedRoles={["admin"]}><AdminAyudas /></ProtectedRoute>} />
               <Route path="/usuario" element={<ProtectedRoute allowedRoles={["admin"]}><RegistroUsuario /></ProtectedRoute>} />

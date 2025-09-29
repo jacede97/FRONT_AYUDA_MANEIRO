@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import Table from "./table";
 import Modal from "../../layout/Modal";
@@ -12,7 +12,7 @@ const Dashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchCodigo, setSearchCodigo] = useState("");
   const [searchPalabra, setSearchPalabra] = useState("");
-  const [sortConfig, setSortConfig] = useState({ key: "codigo", direction: "desc" }); // Cambiado a ordenar por código de mayor a menor por defecto
+  const [sortConfig, setSortConfig] = useState({ key: "codigo", direction: "desc" });
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [modalProps, setModalProps] = useState({
@@ -49,6 +49,9 @@ const Dashboard = () => {
   // Obtener el rol del usuario desde localStorage
   const user = JSON.parse(localStorage.getItem("user") || '{}');
   const userRole = user.role || "basico";
+
+  // Ref para almacenar la última versión de ayudas desde la API
+  const lastApiData = useRef(null);
 
   useEffect(() => {
     if (alert.show) {
@@ -91,19 +94,34 @@ const Dashboard = () => {
     }
   };
 
-  const fetchAyudas = useCallback(async (showAlert = true) => {
-    console.log("INTENTANDO: Cargar ayudas desde la API...");
+  const fetchAyudas = useCallback(async (showAlert = true, force = false) => {
+    console.log("INTENTANDO: Cargar ayudas...");
+    const cacheKey = "ayudas_cache";
+    const cacheExpiration = 86400000; // 24 horas en milisegundos
+    const cachedData = localStorage.getItem(cacheKey);
+
+    if (!force && cachedData) {
+      const { data: cachedAyudas, timestamp } = JSON.parse(cachedData);
+      if (Date.now() - timestamp < cacheExpiration) {
+        console.log("ÉXITO: Cargando desde caché");
+        setAyudas(cachedAyudas);
+        // Comparar con la API en background si hay cambios
+        compareWithApi(cachedAyudas);
+        return;
+      }
+    }
+
+    // Si fuerza refresco o no hay caché válido, consulta la API
     try {
       const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/");
       console.log("ÉXITO: Respuesta de la API (datos crudos de Ayudas):", response.data);
 
       const apiAyudas = response.data.map((ayuda) => {
-        let nacionalidad = ayuda.nacionalidad;
-        if (!nacionalidad || nacionalidad === "") {
-          nacionalidad =
-            ayuda.cedula && typeof ayuda.cedula === "string" && ayuda.cedula.startsWith("V")
-              ? "V"
-              : "E";
+        let nacionalidad = ayuda.nacionalidad || "";
+        if (!nacionalidad && ayuda.cedula && typeof ayuda.cedula === "string" && ayuda.cedula.startsWith("V")) {
+          nacionalidad = "V";
+        } else if (!nacionalidad) {
+          nacionalidad = "E";
         }
 
         return {
@@ -111,36 +129,37 @@ const Dashboard = () => {
           id: ayuda.id,
           fecha: new Date(ayuda.fecha_registro).toISOString().split("T")[0],
           beneficiario: ayuda.beneficiario || "",
-          nacionalidad: nacionalidad,
+          nacionalidad,
           sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
           fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
           responsableInstitucion: ayuda.responsableInstitucion || "",
           tipo: ayuda.tipo || "Desconocido",
         };
       });
+
+      // Guarda en caché con timestamp
+      localStorage.setItem(cacheKey, JSON.stringify({ data: apiAyudas, timestamp: Date.now() }));
       setAyudas(apiAyudas);
+      lastApiData.current = apiAyudas; // Actualiza la última versión conocida de la API
 
       if (showAlert) {
         setAlert({
           show: true,
-          message: "Datos cargados exitosamente.",
+          message: "Datos cargados exitosamente desde la API.",
           type: "success",
         });
       }
     } catch (error) {
-      console.error("ERROR: Fallo al cargar las ayudas desde la API.");
-      console.error("Detalles del error:", error);
-
+      console.error("ERROR: Fallo al cargar las ayudas desde la API.", error);
       let errorMessage = "¡Error al conectar con la API! No se pudieron cargar los datos.";
 
       if (error.response) {
-        console.error("Respuesta de la API con error:", error.response.status, error.response.data);
-        errorMessage = `Error de la API: ${error.response.status}. Mensaje: ${error.response.data.detail || error.response.data.message || 'Error desconocido'}`;
+        errorMessage = `Error de la API: ${error.response.status}. Mensaje: ${
+          error.response.data.detail || error.response.data.message || "Error desconocido"
+        }`;
       } else if (error.request) {
-        console.error("No se recibió respuesta del servidor.");
         errorMessage = "No se pudo conectar al servidor de la API. Por favor, intente de nuevo más tarde.";
       } else {
-        console.error("Error al configurar la solicitud:", error.message);
         errorMessage = `Error al procesar la solicitud: ${error.message}`;
       }
 
@@ -152,8 +171,65 @@ const Dashboard = () => {
     }
   }, []);
 
+  const compareWithApi = async (cachedAyudas) => {
+    try {
+      const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/", { timeout: 5000 });
+      const apiAyudas = response.data.map((ayuda) => ({
+        ...ayuda,
+        fecha: new Date(ayuda.fecha_registro).toISOString().split("T")[0],
+        beneficiario: ayuda.beneficiario || "",
+        nacionalidad: ayuda.nacionalidad || (ayuda.cedula?.startsWith("V") ? "V" : "E"),
+        sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
+        fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
+        responsableInstitucion: ayuda.responsableInstitucion || "",
+        tipo: ayuda.tipo || "Desconocido",
+      }));
+
+      // Comparar longitud y contenido (por ID)
+      const hasChanges = cachedAyudas.length !== apiAyudas.length || 
+        !cachedAyudas.every((cached) => apiAyudas.some((api) => api.id === cached.id && JSON.stringify(api) === JSON.stringify(cached)));
+
+      if (hasChanges) {
+        console.log("Detectados cambios en la API, actualizando datos...");
+        setAyudas(apiAyudas);
+        localStorage.setItem("ayudas_cache", JSON.stringify({ data: apiAyudas, timestamp: Date.now() }));
+        setAlert({
+          show: true,
+          message: "Datos actualizados desde la API debido a cambios detectados.",
+          type: "success",
+        });
+      } else {
+        console.log("No hay cambios en la API.");
+      }
+    } catch (error) {
+      console.warn("No se pudo comparar con la API en background:", error);
+    }
+  };
+
   useEffect(() => {
-    fetchAyudas();
+    fetchAyudas(true); // Llama siempre a fetchAyudas en el montaje
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        console.log("App visible, intentando refrescar datos en background...");
+        fetchAyudas(false); // Refresca sin mostrar alerta
+      }
+    };
+
+    // Intervalo para verificar cambios cada 5 minutos (300000 ms)
+    const checkInterval = setInterval(() => {
+      const cachedData = localStorage.getItem("ayudas_cache");
+      if (cachedData) {
+        const { data: cachedAyudas } = JSON.parse(cachedData);
+        compareWithApi(cachedAyudas);
+      }
+    }, 300000); // 5 minutos
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      clearInterval(checkInterval); // Limpia el intervalo al desmontar
+    };
   }, [fetchAyudas]);
 
   const checkIfPinRequired = (cedula, allAyudas) => {
@@ -165,11 +241,7 @@ const Dashboard = () => {
 
     const recentAyudas = allAyudas.filter((ayuda) => {
       const ayudaDate = new Date(ayuda.fecha);
-      return (
-        ayuda.cedula === cedula &&
-        ayudaDate >= threeMonthsAgo &&
-        ayudaDate <= today
-      );
+      return ayuda.cedula === cedula && ayudaDate >= threeMonthsAgo && ayudaDate <= today;
     });
 
     return recentAyudas.length >= 2;
@@ -191,26 +263,20 @@ const Dashboard = () => {
     }
 
     try {
-      console.log(`Buscando beneficiario para cédula: ${cedula}`);
       const response = await axios.get(
         `https://maneiro-api-mem1.onrender.com/registro_electoral/buscar/?cedula=${cedula}`
       );
       const data = response.data;
-      console.log("Respuesta completa de la API de registro electoral:", data);
-      console.log(
-        "Campo 'nombre' recibido de la API de Registro:",
-        data.nombre
-      );
 
       setFormData((prev) => ({
         ...prev,
-        beneficiario: data.nombre.trim(),
-        nacionalidad: data.nacionalidad.trim(),
+        beneficiario: data.nombre?.trim() || "",
+        nacionalidad: data.nacionalidad?.trim() || "",
         sexo: data.sexo === "F" ? "Femenino" : "Masculino",
         fechaNacimiento: formatToYYYYMMDD(data.fecha_nacimiento),
-        parroquia: data.parroquia,
-        municipio: data.municipio,
-        estructura: data.estructura,
+        parroquia: data.parroquia || "",
+        municipio: data.municipio || "",
+        estructura: data.estructura || "",
       }));
 
       const requiresPin = checkIfPinRequired(cedula, ayudas);
@@ -223,10 +289,7 @@ const Dashboard = () => {
         type: "success",
       });
     } catch (error) {
-      console.error("Error al buscar la cédula:");
-      console.error("Detalles del error:", error);
-      console.error("Respuesta del error (si existe):", error.response?.data);
-      console.error("Estado del error (si existe):", error.response?.status);
+      console.error("Error al buscar la cédula:", error);
       setAlert({
         show: true,
         message:
@@ -250,19 +313,19 @@ const Dashboard = () => {
     if (ayuda) {
       setSelectedAyuda(ayuda);
       setFormData({
-        cedula: ayuda.cedula,
+        cedula: ayuda.cedula || "",
         beneficiario: ayuda.beneficiario || "",
         nacionalidad: ayuda.nacionalidad || "",
-        sexo: ayuda.sexo,
+        sexo: ayuda.sexo || "",
         fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
-        parroquia: ayuda.parroquia,
-        municipio: ayuda.municipio,
+        parroquia: ayuda.parroquia || "",
+        municipio: ayuda.municipio || "",
         estructura: ayuda.estructura || "",
         telefono: ayuda.telefono || "",
         direccion: ayuda.direccion || "",
         calle: ayuda.calle || "",
         institucion: ayuda.institucion || "",
-        estado: ayuda.estado,
+        estado: ayuda.estado || "",
         tipo: ayuda.tipo || "",
         subtipo: ayuda.subtipo || "",
         observacion: ayuda.observacion || "",
@@ -318,9 +381,7 @@ const Dashboard = () => {
     if (name === "cedula" && !selectedAyuda) {
       const requiresPin = checkIfPinRequired(value, ayudas);
       setPinRequired(requiresPin);
-      if (!requiresPin) {
-        setPinInput("");
-      }
+      if (!requiresPin) setPinInput("");
     }
   };
 
@@ -365,7 +426,7 @@ const Dashboard = () => {
     let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
     if (!selectedAyuda) {
       const maxId = ayudas.reduce((max, ayuda) => {
-        const num = parseInt(ayuda.codigo?.replace("AYU-", ""), 10);
+        const num = parseInt(ayuda.codigo?.replace("AYU-", "") || "0", 10);
         return isNaN(num) ? max : Math.max(max, num);
       }, 0);
       generatedCodigo = `AYU-${String(maxId + 1).padStart(3, "0")}`;
@@ -396,6 +457,13 @@ const Dashboard = () => {
       fecha_actualizacion: currentDate,
     };
 
+    let tempId = null;
+    if (!selectedAyuda) {
+      tempId = Date.now();
+      const newAyuda = { ...apiData, id: tempId };
+      setAyudas((prev) => [newAyuda, ...prev]);
+    }
+
     try {
       if (selectedAyuda) {
         await axios.put(
@@ -408,9 +476,6 @@ const Dashboard = () => {
           type: "success",
         });
       } else {
-        // For new records, add to the top temporarily before API refresh
-        const newAyuda = { ...apiData, id: Date.now() }; // Temporary ID
-        setAyudas((prev) => [newAyuda, ...prev]); // Add new record at the top
         await axios.post("https://maneiro-api-mem1.onrender.com/api/", apiData);
         setAlert({
           show: true,
@@ -420,15 +485,11 @@ const Dashboard = () => {
       }
       closeModal();
       setSelectedAyuda(null);
-      fetchAyudas(false); // Refresh to get the actual ID from the server
+      fetchAyudas(false, true); // Fuerza refresco inmediato
     } catch (error) {
-      console.error(
-        "Error al guardar la ayuda:",
-        error.response?.data || error
-      );
-      // Revert the temporary addition if the POST fails
-      if (!selectedAyuda) {
-        setAyudas((prev) => prev.slice(1)); // Remove the temporary record
+      console.error("Error al guardar la ayuda:", error);
+      if (!selectedAyuda && tempId) {
+        setAyudas((prev) => prev.filter((a) => a.id !== tempId));
       }
       setAlert({
         show: true,
@@ -492,12 +553,9 @@ const Dashboard = () => {
         setIsConfirmModalOpen(false);
         setItemToDelete(null);
         setSelectedAyuda(null);
-        fetchAyudas(false);
+        fetchAyudas(false, true); // Fuerza refresco inmediato
       } catch (error) {
-        console.error(
-          "Error al eliminar la ayuda:",
-          error.response?.data || error
-        );
+        console.error("Error al eliminar la ayuda:", error);
         setAlert({
           show: true,
           message: `Error al eliminar la ayuda: ${
@@ -520,8 +578,7 @@ const Dashboard = () => {
     const matchesPalabra =
       ayuda.beneficiario?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
       ayuda.cedula?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
-      ayuda.estructura?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
-      false;
+      ayuda.estructura?.toLowerCase().includes(searchPalabra.toLowerCase());
 
     const matchesCodigo = () => {
       if (!searchCodigo.trim()) return true;
@@ -530,10 +587,8 @@ const Dashboard = () => {
       const codigo = ayuda.codigo?.toUpperCase();
       if (!codigo) return false;
 
-      if (codigo === userQuery) {
-        return true;
-      }
-      
+      if (codigo === userQuery) return true;
+
       const match = codigo.match(/AYU-(\d+)/);
       if (!match) return false;
 
@@ -552,27 +607,14 @@ const Dashboard = () => {
 
   const sortedAyudas = [...filteredAyudas].sort((a, b) => {
     if (sortConfig.key === "codigo") {
-      const aNum = parseInt(a.codigo?.replace("AYU-", ""), 10);
-      const bNum = parseInt(b.codigo?.replace("AYU-", ""), 10);
-
-      const comparison = aNum - bNum;
-      return sortConfig.direction === "asc" ? comparison : -comparison;
+      const aNum = parseInt(a.codigo?.replace("AYU-", "") || "0", 10);
+      const bNum = parseInt(b.codigo?.replace("AYU-", "") || "0", 10);
+      return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
     } else if (sortConfig.key) {
-      const aValue = a[sortConfig.key];
-      const bValue = b[sortConfig.key];
-
-      if (aValue === null || aValue === undefined)
-        return sortConfig.direction === "asc" ? 1 : -1;
-      if (bValue === null || bValue === undefined)
-        return sortConfig.direction === "asc" ? -1 : 1;
-
-      if (aValue < bValue) {
-        return sortConfig.direction === "asc" ? -1 : 1;
-      }
-      if (aValue > bValue) {
-        return sortConfig.direction === "asc" ? 1 : -1;
-      }
-      return 0;
+      const aValue = a[sortConfig.key] ?? "";
+      const bValue = b[sortConfig.key] ?? "";
+      return sortConfig.direction === "asc" ? 
+        aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
     }
     return 0;
   });
@@ -603,7 +645,7 @@ const Dashboard = () => {
           />
         )}
 
-        <div className="mb-6 flex flex-col flex justify-center sm:flex-row items-center sm:items-start gap-4 rounded-xl bg-white p-4 shadow-lg border border-gray-300">
+        <div className="mb-6 flex flex-col justify-center sm:flex-row items-center sm:items-start gap-4 rounded-xl bg-white p-4 shadow-lg border border-gray-300">
           <img
             src="/LOGO.png"
             alt="Logo de la Aplicación"
@@ -696,7 +738,6 @@ const Dashboard = () => {
                 </svg>
                 Editar
               </button>
-              {/* Botón Eliminar oculto para usuarios de recepción */}
               {userRole !== "recepcion" && (
                 <button
                   onClick={handleDelete}
