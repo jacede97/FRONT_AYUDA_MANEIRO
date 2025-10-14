@@ -1,19 +1,27 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
-import Table from "./table";
-import Modal from "../../layout/Modal";
+import Table from "./tableSectorial"; // Asume que Table.jsx se adaptará a los nuevos campos
+import Modal from "../../layout/Modal"; // Asume que Modal.jsx se adaptará al nuevo formulario
 import Alert from "../Alert";
 import ConfirmDeleteModal from "../../layout/ConfirmDeleteModal";
-import { generatePlanilla } from "./documento";
+import { generatePlanilla } from "./documentoSectorial"; // Esta función probablemente necesitará adaptación
 
-const Dashboard = () => {
+// ----------------------------------------------------------------------
+// URL BASE ADAPTADA PARA AYUDAS SECTORIALES
+// ----------------------------------------------------------------------
+const API_BASE_URL = "https://maneiro-api-mem1.onrender.com/api/sectoriales/";
+
+const DashboardSectorial = () => {
   const [alert, setAlert] = useState({ show: false, message: "", type: "" });
   const [ayudas, setAyudas] = useState([]);
   const [selectedAyuda, setSelectedAyuda] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchCodigo, setSearchCodigo] = useState("");
-  const [searchPalabra, setSearchPalabra] = useState("");
+  
+  // Mantengo los filtros, aunque la palabra clave ahora buscará en sector, responsable, etc.
+  const [searchCodigo, setSearchCodigo] = useState(""); 
+  const [searchPalabra, setSearchPalabra] = useState(""); 
   const [sortConfig, setSortConfig] = useState({ key: "codigo", direction: "desc" });
+  
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState(null);
   const [modalProps, setModalProps] = useState({
@@ -21,28 +29,25 @@ const Dashboard = () => {
     headerColor: "",
   });
 
+  // ----------------------------------------------------------------------
+  // ESTADO DE FORMULARIO ADAPTADO PARA AYUDAS SECTORIALES
+  // ----------------------------------------------------------------------
   const [formData, setFormData] = useState({
-    cedula: "",
-    beneficiario: "",
-    nacionalidad: "",
-    sexo: "",
-    fechaNacimiento: "",
-    parroquia: "",
     municipio: "",
+    parroquia: "",
+    sector: "", // Campo clave
     estructura: "",
-    telefono: "",
-    direccion: "",
     calle: "",
-    institucion: "",
+    direccion_completa: "", // Cambiado de 'direccion'
+    institucion: "", // Mantenido, asumo que la institución que lo gestiona
     estado: "",
-    tipo: "",
+    tipo_solicitud: "", // Cambiado de 'tipo'
+    responsible: "", // Cambiado de 'responsableInstitucion'
     subtipo: "",
     observacion: "",
-    responsableInstitucion: "",
   });
 
-  const [pinRequired, setPinRequired] = useState(false);
-  const [pinInput, setPinInput] = useState("");
+  // PIN solo para acciones sensibles (eliminar/finalizar/editar)
   const [pinForAction, setPinForAction] = useState("");
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [actionToConfirm, setActionToConfirm] = useState(null);
@@ -56,6 +61,7 @@ const Dashboard = () => {
   // Ref para almacenar la última versión de ayudas desde la API
   const lastApiData = useRef(null);
 
+  // Alerta
   useEffect(() => {
     if (alert.show) {
       const timer = setTimeout(() => {
@@ -65,41 +71,17 @@ const Dashboard = () => {
     }
   }, [alert.show]);
 
+  // Ya no es necesario, solo para mantener la consistencia del código original
   const formatToYYYYMMDD = (dateString) => {
-    if (!dateString) return "";
-    try {
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        const parts = dateString.split(/[-/]/);
-        if (parts.length === 3) {
-          const day = parseInt(parts[0], 10);
-          const month = parseInt(parts[1], 10) - 1;
-          const year = parseInt(parts[2], 10);
-          const newDate = new Date(year, month, day);
-          if (!isNaN(newDate.getTime())) {
-            return newDate.toISOString().split("T")[0];
-          }
-        }
-        console.warn(
-          "Fecha de nacimiento inválida o formato inesperado (formatToYYYYMMDD):",
-          dateString
-        );
-        return "";
-      }
-      return date.toISOString().split("T")[0];
-    } catch (error) {
-      console.error(
-        "Error formateando fecha en formatToYYYYMMDD:",
-        dateString,
-        error
-      );
-      return "";
-    }
+    return dateString; // Los datos de AyudaSectorial no contienen fechas de nacimiento
   };
 
+  // ----------------------------------------------------------------------
+  // FUNCIÓN FETCH ADAPTADA
+  // ----------------------------------------------------------------------
   const fetchAyudas = useCallback(async (showAlert = true, force = false) => {
-    console.log("INTENTANDO: Cargar ayudas...");
-    const cacheKey = "ayudas_cache";
+    console.log("INTENTANDO: Cargar ayudas sectoriales...");
+    const cacheKey = "ayudas_sectoriales_cache";
     const cacheExpiration = 86400000; // 24 horas en milisegundos
     const cachedData = localStorage.getItem(cacheKey);
 
@@ -108,54 +90,42 @@ const Dashboard = () => {
       if (Date.now() - timestamp < cacheExpiration) {
         console.log("ÉXITO: Cargando desde caché");
         setAyudas(cachedAyudas);
-        // Comparar con la API en background si hay cambios
-        compareWithApi(cachedAyudas);
+        compareWithApi(cachedAyudas); // background check
         return;
       }
     }
 
-    // Si fuerza refresco o no hay caché válido, consulta la API
     try {
-      const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/");
-      console.log("ÉXITO: Respuesta de la API (datos crudos de Ayudas):", response.data);
+      // ⚠️ Ruta adaptada
+      const response = await axios.get(API_BASE_URL); 
+      console.log("ÉXITO: Respuesta de la API (datos crudos de Ayudas Sectoriales):", response.data);
 
       const apiAyudas = response.data.map((ayuda) => {
-        let nacionalidad = ayuda.nacionalidad || "";
-        if (!nacionalidad && ayuda.cedula && typeof ayuda.cedula === "string" && ayuda.cedula.startsWith("V")) {
-          nacionalidad = "V";
-        } else if (!nacionalidad) {
-          nacionalidad = "E";
-        }
-
         return {
           ...ayuda,
           id: ayuda.id,
+          // Mapeo de campos a la estructura de la tabla (si es necesario)
           fecha: new Date(ayuda.fecha_registro).toISOString().split("T")[0],
-          beneficiario: ayuda.beneficiario || "",
-          nacionalidad,
-          sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
-          fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
-          responsableInstitucion: ayuda.responsableInstitucion || "",
-          tipo: ayuda.tipo || "Desconocido",
+          // Los campos como cedula, beneficiario, etc. se eliminan aquí
         };
       });
 
       // Guarda en caché con timestamp
       localStorage.setItem(cacheKey, JSON.stringify({ data: apiAyudas, timestamp: Date.now() }));
       setAyudas(apiAyudas);
-      lastApiData.current = apiAyudas; // Actualiza la última versión conocida de la API
+      lastApiData.current = apiAyudas;
 
       if (showAlert) {
         setAlert({
           show: true,
-          message: "Datos cargados exitosamente desde la API.",
+          message: "Datos de Ayudas Sectoriales cargados exitosamente desde la API.",
           type: "success",
         });
       }
     } catch (error) {
-      console.error("ERROR: Fallo al cargar las ayudas desde la API.", error);
-      let errorMessage = "¡Error al conectar con la API! No se pudieron cargar los datos.";
-
+      console.error("ERROR: Fallo al cargar las ayudas sectoriales desde la API.", error);
+      let errorMessage = "¡Error al conectar con la API de Ayudas Sectoriales! No se pudieron cargar los datos.";
+      // ... (manejo de errores es igual)
       if (error.response) {
         errorMessage = `Error de la API: ${error.response.status}. Mensaje: ${
           error.response.data.detail || error.response.data.message || "Error desconocido"
@@ -172,30 +142,26 @@ const Dashboard = () => {
         type: "error",
       });
     }
-  }, []);
+  }, []); // Dependencias vacías
 
+  // Función de comparación adaptada
   const compareWithApi = async (cachedAyudas) => {
     try {
-      const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/", { timeout: 5000 });
+      const response = await axios.get(API_BASE_URL, { timeout: 5000 });
       const apiAyudas = response.data.map((ayuda) => ({
         ...ayuda,
         fecha: new Date(ayuda.fecha_registro).toISOString().split("T")[0],
-        beneficiario: ayuda.beneficiario || "",
-        nacionalidad: ayuda.nacionalidad || (ayuda.cedula?.startsWith("V") ? "V" : "E"),
-        sexo: ayuda.sexo === "M" ? "Masculino" : "Femenino",
-        fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
-        responsableInstitucion: ayuda.responsableInstitucion || "",
-        tipo: ayuda.tipo || "Desconocido",
+        // Mapeo de campos sectoriales
       }));
 
-      // Comparar longitud y contenido (por ID)
+      // ... (lógica de comparación se mantiene)
       const hasChanges = cachedAyudas.length !== apiAyudas.length || 
         !cachedAyudas.every((cached) => apiAyudas.some((api) => api.id === cached.id && JSON.stringify(api) === JSON.stringify(cached)));
 
       if (hasChanges) {
         console.log("Detectados cambios en la API, actualizando datos...");
         setAyudas(apiAyudas);
-        localStorage.setItem("ayudas_cache", JSON.stringify({ data: apiAyudas, timestamp: Date.now() }));
+        localStorage.setItem("ayudas_sectoriales_cache", JSON.stringify({ data: apiAyudas, timestamp: Date.now() }));
         setAlert({
           show: true,
           message: "Datos actualizados desde la API debido a cambios detectados.",
@@ -210,18 +176,16 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetchAyudas(true); // Llama siempre a fetchAyudas en el montaje
+    fetchAyudas(true); 
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        console.log("App visible, intentando refrescar datos en background...");
-        fetchAyudas(false); // Refresca sin mostrar alerta
+        fetchAyudas(false);
       }
     };
 
-    // Intervalo para verificar cambios cada 5 minutos (300000 ms)
     const checkInterval = setInterval(() => {
-      const cachedData = localStorage.getItem("ayudas_cache");
+      const cachedData = localStorage.getItem("ayudas_sectoriales_cache");
       if (cachedData) {
         const { data: cachedAyudas } = JSON.parse(cachedData);
         compareWithApi(cachedAyudas);
@@ -231,140 +195,64 @@ const Dashboard = () => {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      clearInterval(checkInterval); // Limpia el intervalo al desmontar
+      clearInterval(checkInterval);
     };
   }, [fetchAyudas]);
 
-  const checkIfPinRequired = (cedula, allAyudas) => {
-    if (!cedula) return false;
-
-    const today = new Date();
-    const threeMonthsAgo = new Date(today);
-    threeMonthsAgo.setMonth(today.getMonth() - 3);
-
-    const recentAyudas = allAyudas.filter((ayuda) => {
-      const ayudaDate = new Date(ayuda.fecha);
-      return ayuda.cedula === cedula && ayudaDate >= threeMonthsAgo && ayudaDate <= today;
-    });
-
-    return recentAyudas.length >= 2;
-  };
+  // ----------------------------------------------------------------------
+  // LÓGICA DE BÚSQUEDA DE BENEFICIARIO (ELIMINADA)
+  // ----------------------------------------------------------------------
+  // Se elimina la función handleSearchBeneficiary y checkIfPinRequired
+  // porque el registro ya no depende de la cédula ni del historial.
 
   const handleRowSelect = (ayuda) => {
     setSelectedAyuda(ayuda);
   };
 
-  const handleSearchBeneficiary = async () => {
-    const cedula = formData.cedula;
-    if (!cedula) {
-      setAlert({
-        show: true,
-        message: "Por favor, ingrese una cédula para buscar.",
-        type: "warning",
-      });
-      return;
-    }
-
-    try {
-      const response = await axios.get(
-        `https://maneiro-api-mem1.onrender.com/registro_electoral/buscar/?cedula=${cedula}`
-      );
-      const data = response.data;
-
-      setFormData((prev) => ({
-        ...prev,
-        beneficiario: data.nombre?.trim() || "",
-        nacionalidad: data.nacionalidad?.trim() || "",
-        sexo: data.sexo === "F" ? "Femenino" : "Masculino",
-        fechaNacimiento: formatToYYYYMMDD(data.fecha_nacimiento),
-        parroquia: data.parroquia || "",
-        municipio: data.municipio || "",
-        estructura: data.estructura || "",
-      }));
-
-      const requiresPin = checkIfPinRequired(cedula, ayudas);
-      setPinRequired(requiresPin);
-      if (!requiresPin) setPinInput("");
-
-      setAlert({
-        show: true,
-        message: "Beneficiario encontrado y datos rellenados.",
-        type: "success",
-      });
-    } catch (error) {
-      console.error("Error al buscar la cédula:", error);
-      setAlert({
-        show: true,
-        message:
-          "Error en la conexión con el servidor de registro electoral. Intente de nuevo más tarde o la cédula no fue encontrada.",
-        type: "error",
-      });
-
-      setFormData((prev) => ({
-        ...prev,
-        beneficiario: "",
-        nacionalidad: "",
-        sexo: "",
-        fechaNacimiento: "",
-        parroquia: "",
-        municipio: "",
-      }));
-    }
-  };
-
+  // ----------------------------------------------------------------------
+  // FUNCIÓN OPEN MODAL ADAPTADA
+  // ----------------------------------------------------------------------
   const openModal = (ayuda = null) => {
     if (ayuda) {
       setSelectedAyuda(ayuda);
       setFormData({
-        cedula: ayuda.cedula || "",
-        beneficiario: ayuda.beneficiario || "",
-        nacionalidad: ayuda.nacionalidad || "",
-        sexo: ayuda.sexo || "",
-        fechaNacimiento: formatToYYYYMMDD(ayuda.fechaNacimiento),
-        parroquia: ayuda.parroquia || "",
+        // Adaptamos los nombres de campos al modelo Sectorial
         municipio: ayuda.municipio || "",
+        parroquia: ayuda.parroquia || "",
+        sector: ayuda.sector || "",
         estructura: ayuda.estructura || "",
-        telefono: ayuda.telefono || "",
-        direccion: ayuda.direccion || "",
         calle: ayuda.calle || "",
+        direccion_completa: ayuda.direccion_completa || "", // Nuevo nombre
         institucion: ayuda.institucion || "",
         estado: ayuda.estado || "",
-        tipo: ayuda.tipo || "",
+        tipo_solicitud: ayuda.tipo_solicitud || "", // Nuevo nombre
         subtipo: ayuda.subtipo || "",
         observacion: ayuda.observacion || "",
-        responsableInstitucion: ayuda.responsableInstitucion || "",
+        responsible: ayuda.responsible || "", // Nuevo nombre
       });
-      setPinRequired(false);
-      setPinInput("");
       setModalProps({
-        title: "Editar Ayuda",
+        title: "Editar Ayuda Sectorial",
         headerColor: "bg-[#FFCB00]",
       });
     } else {
       setSelectedAyuda(null);
       setFormData({
-        cedula: "",
-        beneficiario: "",
-        nacionalidad: "",
-        sexo: "",
-        fechaNacimiento: "",
-        parroquia: "",
+        // Valores por defecto para crear
         municipio: "",
+        parroquia: "",
+        sector: "",
         estructura: "",
-        telefono: "",
-        direccion: "",
         calle: "",
+        direccion_completa: "",
         institucion: "",
         estado: "REGISTRADO / RECIBIDO",
-        tipo: "",
+        tipo_solicitud: "",
         subtipo: "",
         observacion: "",
-        responsableInstitucion: "",
+        responsible: "",
       });
-      setPinRequired(false);
-      setPinInput("");
       setModalProps({
-        title: "Nueva Ayuda",
+        title: "Nueva Ayuda Sectorial",
         headerColor: "bg-[#0095D4]",
       });
     }
@@ -380,109 +268,83 @@ const Dashboard = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-
-    if (name === "cedula" && !selectedAyuda) {
-      const requiresPin = checkIfPinRequired(value, ayudas);
-      setPinRequired(requiresPin);
-      if (!requiresPin) setPinInput("");
-    }
   };
 
+  // ----------------------------------------------------------------------
+  // FUNCIÓN SUBMIT ADAPTADA
+  // ----------------------------------------------------------------------
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validación mínima para Ayudas Sectoriales
     if (
-      !formData.cedula ||
-      !formData.beneficiario ||
-      !formData.nacionalidad ||
-      !formData.sexo ||
       !formData.municipio ||
-      !formData.parroquia
+      !formData.parroquia ||
+      !formData.sector ||
+      !formData.tipo_solicitud ||
+      !formData.responsible
     ) {
       setAlert({
         show: true,
         message:
-          "Por favor, complete todos los campos requeridos (cédula, beneficiario, nacionalidad, sexo, municipio, parroquia).",
+          "Por favor, complete los campos requeridos: Municipio, Parroquia, Sector, Tipo de Solicitud y Responsable.",
         type: "error",
       });
       return;
     }
 
-    if (formData.telefono && !/^\d{10}$/.test(formData.telefono)) {
-      setAlert({
-        show: true,
-        message: "El teléfono debe tener exactamente 10 dígitos numéricos.",
-        type: "error",
-      });
-      return;
-    }
+    // Eliminada la validación de teléfono y la validación de PIN para registrar.
 
-    if (pinRequired && (!pinInput || pinInput !== "270725")) {
-      setAlert({
-        show: true,
-        message: "PIN incorrecto. No se puede registrar la ayuda.",
-        type: "error",
-      });
-      return;
-    }
-
-    let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
-    if (!selectedAyuda) {
-      const maxId = ayudas.reduce((max, ayuda) => {
-        const num = parseInt(ayuda.codigo?.replace("AYU-", "") || "0", 10);
-        return isNaN(num) ? max : Math.max(max, num);
-      }, 0);
-      generatedCodigo = `AYU-${String(maxId + 1).padStart(3, "0")}`;
-    }
-
-    const currentDate = new Date().toISOString();
-
+    // La generación del código se maneja en el backend (Django).
+    // Aquí solo creamos el objeto de datos que se enviará
     const apiData = {
-      codigo: generatedCodigo,
-      cedula: formData.cedula,
-      beneficiario: formData.beneficiario,
-      nacionalidad: formData.nacionalidad === "V" ? "V" : "E",
-      sexo: formData.sexo === "Masculino" ? "M" : "F",
-      fechaNacimiento: formData.fechaNacimiento,
-      parroquia: formData.parroquia,
+      // No incluimos 'codigo', 'fecha_registro' ni 'fecha_actualizacion' en el POST/PUT
+      // ya que el backend las maneja automáticamente (o son de solo lectura).
       municipio: formData.municipio,
+      parroquia: formData.parroquia,
+      sector: formData.sector,
       estructura: formData.estructura || "",
-      telefono: formData.telefono || "",
-      direccion: formData.direccion || "",
       calle: formData.calle || "",
+      direccion_completa: formData.direccion_completa || "",
       institucion: formData.institucion || "",
       estado: formData.estado || "REGISTRADO / RECIBIDO",
-      tipo: formData.tipo || "",
-      observacion: formData.observacion || "",
-      responsableInstitucion: formData.responsableInstitucion || "",
+      tipo_solicitud: formData.tipo_solicitud || "",
+      responsible: formData.responsible || "",
       subtipo: formData.subtipo || "",
-      fecha_registro: currentDate,
-      fecha_actualizacion: currentDate,
+      observacion: formData.observacion || "",
     };
 
     let tempId = null;
     if (!selectedAyuda) {
-      tempId = Date.now();
-      const newAyuda = { ...apiData, id: tempId };
+      tempId = Date.now(); // Simulación de ID para optimismo
+      const newAyuda = { 
+        ...apiData, 
+        id: tempId, 
+        codigo: 'PENDIENTE', 
+        fecha_registro: new Date().toISOString(),
+        fecha_actualizacion: new Date().toISOString(),
+      };
       setAyudas((prev) => [newAyuda, ...prev]);
     }
 
     try {
       if (selectedAyuda) {
+        // PATCH/PUT a la URL con ID
         await axios.put(
-          `https://maneiro-api-mem1.onrender.com/api/${selectedAyuda.id}/`,
-          apiData
+          `${API_BASE_URL}${selectedAyuda.id}/`,
+          apiData // Enviamos solo los campos modificables
         );
         setAlert({
           show: true,
-          message: "Ayuda actualizada exitosamente.",
+          message: "Ayuda Sectorial actualizada exitosamente.",
           type: "success",
         });
       } else {
-        await axios.post("https://maneiro-api-mem1.onrender.com/api/", apiData);
+        // POST a la URL base
+        await axios.post(API_BASE_URL, apiData);
         setAlert({
           show: true,
-          message: "Nueva ayuda registrada exitosamente.",
+          message: "Nueva Ayuda Sectorial registrada exitosamente.",
           type: "success",
         });
       }
@@ -490,20 +352,24 @@ const Dashboard = () => {
       setSelectedAyuda(null);
       fetchAyudas(false, true); // Fuerza refresco inmediato
     } catch (error) {
-      console.error("Error al guardar la ayuda:", error);
+      console.error("Error al guardar la ayuda sectorial:", error);
+      // Revertir el estado optimista
       if (!selectedAyuda && tempId) {
         setAyudas((prev) => prev.filter((a) => a.id !== tempId));
       }
       setAlert({
         show: true,
-        message: `Error al guardar la ayuda: ${
+        message: `Error al guardar la ayuda sectorial: ${
           error.response?.data?.detail || error.message
         }`,
         type: "error",
       });
     }
   };
-
+  
+  // ----------------------------------------------------------------------
+  // LÓGICA DE CONFIRMACIÓN DE PIN (Se mantiene)
+  // ----------------------------------------------------------------------
   const requirePinForAction = (action) => {
     if (!selectedAyuda) return;
     setActionToConfirm(action);
@@ -512,7 +378,8 @@ const Dashboard = () => {
   };
 
   const confirmPinAction = () => {
-    if (pinForAction !== "270725") {
+    // PIN de ejemplo, debe ser reemplazado por un endpoint de verificación
+    if (pinForAction !== "270725") { 
       setAlert({
         show: true,
         message: "PIN incorrecto. Acción denegada. ⚠️",
@@ -543,6 +410,13 @@ const Dashboard = () => {
       requirePinForAction("delete");
     }
   };
+  
+  const handleEdit = () => {
+    if (selectedAyuda) {
+        requirePinForAction("edit");
+    }
+  };
+
 
   const handleFinalize = () => {
     if (selectedAyuda) {
@@ -554,27 +428,27 @@ const Dashboard = () => {
     if (!selectedAyuda) return;
 
     const updatedData = {
-      ...selectedAyuda,
+      // Se adapta a los campos del modelo sectorial
       estado: "FINALIZADA",
       observacion: finalizeObservation || selectedAyuda.observacion || "",
-      fecha_actualizacion: new Date().toISOString(),
+      // No incluimos fecha_actualizacion, el backend lo maneja con auto_now
     };
 
     try {
       await axios.put(
-        `https://maneiro-api-mem1.onrender.com/api/${selectedAyuda.id}/`,
+        `${API_BASE_URL}${selectedAyuda.id}/`,
         updatedData
       );
       setAlert({
         show: true,
-        message: "Ayuda finalizada exitosamente.",
+        message: "Ayuda Sectorial finalizada exitosamente.",
         type: "success",
       });
       setIsFinalizeModalOpen(false);
       setFinalizeObservation("");
-      fetchAyudas(false, true); // Fuerza refresco inmediato
+      fetchAyudas(false, true); 
     } catch (error) {
-      console.error("Error al finalizar la ayuda:", error);
+      console.error("Error al finalizar la ayuda sectorial:", error);
       setAlert({
         show: true,
         message: `Error al finalizar la ayuda: ${
@@ -594,19 +468,19 @@ const Dashboard = () => {
     if (itemToDelete) {
       try {
         await axios.delete(
-          `https://maneiro-api-mem1.onrender.com/api/${itemToDelete.id}/`
+          `${API_BASE_URL}${itemToDelete.id}/` // Ruta adaptada
         );
         setAlert({
           show: true,
-          message: "Ayuda eliminada exitosamente. ❌",
+          message: "Ayuda Sectorial eliminada exitosamente. ❌",
           type: "success",
         });
         setIsConfirmModalOpen(false);
         setItemToDelete(null);
         setSelectedAyuda(null);
-        fetchAyudas(false, true); // Fuerza refresco inmediato
+        fetchAyudas(false, true); 
       } catch (error) {
-        console.error("Error al eliminar la ayuda:", error);
+        console.error("Error al eliminar la ayuda sectorial:", error);
         setAlert({
           show: true,
           message: `Error al eliminar la ayuda: ${
@@ -625,11 +499,16 @@ const Dashboard = () => {
     setItemToDelete(null);
   };
 
+  // ----------------------------------------------------------------------
+  // LÓGICA DE FILTRADO ADAPTADA
+  // ----------------------------------------------------------------------
   const filteredAyudas = ayudas.filter((ayuda) => {
+    // Busca en sector, municipio, tipo de solicitud, o responsable
     const matchesPalabra =
-      ayuda.beneficiario?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
-      ayuda.cedula?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
-      ayuda.estructura?.toLowerCase().includes(searchPalabra.toLowerCase());
+      ayuda.sector?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
+      ayuda.responsible?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
+      ayuda.municipio?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
+      ayuda.tipo_solicitud?.toLowerCase().includes(searchPalabra.toLowerCase());
 
     const matchesCodigo = () => {
       if (!searchCodigo.trim()) return true;
@@ -638,34 +517,34 @@ const Dashboard = () => {
       const codigo = ayuda.codigo?.toUpperCase();
       if (!codigo) return false;
 
-      if (codigo === userQuery) return true;
-
-      const match = codigo.match(/AYU-(\d+)/);
-      if (!match) return false;
-
-      const numeroSecuencial = parseInt(match[1], 10);
-      const numUsuario = parseInt(userQuery.replace(/^AYU-/, ""), 10);
-
-      if (!isNaN(numUsuario) && !isNaN(numeroSecuencial)) {
-        return numeroSecuencial === numUsuario;
+      // El código sectorial es "SEC-..."
+      if (codigo.includes(userQuery)) return true;
+      
+      const match = codigo.match(/SEC-(\w+)/);
+      if (match) {
+        return match[1].includes(userQuery);
       }
 
-      return codigo.includes(userQuery) || match[1].includes(userQuery);
+      return false;
     };
 
     return matchesCodigo() && matchesPalabra;
   });
 
+  // ----------------------------------------------------------------------
+  // LÓGICA DE ORDENAMIENTO (Se mantiene)
+  // ----------------------------------------------------------------------
   const sortedAyudas = [...filteredAyudas].sort((a, b) => {
     if (sortConfig.key === "codigo") {
-      const aNum = parseInt(a.codigo?.replace("AYU-", "") || "0", 10);
-      const bNum = parseInt(b.codigo?.replace("AYU-", "") || "0", 10);
-      return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
+      // Ordenamiento alfanumérico para códigos como SEC-ABC12345
+      const aCode = a.codigo || "";
+      const bCode = b.codigo || "";
+      return sortConfig.direction === "asc" ? aCode.localeCompare(bCode) : bCode.localeCompare(aCode);
     } else if (sortConfig.key) {
       const aValue = a[sortConfig.key] ?? "";
       const bValue = b[sortConfig.key] ?? "";
       return sortConfig.direction === "asc" ? 
-        aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+        String(aValue).localeCompare(String(bValue)) : String(bValue).localeCompare(String(aValue));
     }
     return 0;
   });
@@ -685,6 +564,9 @@ const Dashboard = () => {
     return "";
   };
 
+  // ----------------------------------------------------------------------
+  // RENDERIZADO
+  // ----------------------------------------------------------------------
   return (
     <div className="flex-1 p-2 font-sans bg-gray-50 rounded-xl">
       <div className="space-y-4">
@@ -696,6 +578,7 @@ const Dashboard = () => {
           />
         )}
 
+        {/* Header */}
         <div className="mb-6 flex flex-col justify-center sm:flex-row items-center sm:items-start gap-4 rounded-xl bg-white p-4 shadow-lg border border-gray-300">
           <img
             src="/LOGO.png"
@@ -709,13 +592,15 @@ const Dashboard = () => {
           />
           <div className="text-center sm:text-left">
             <h2 className="text-2xl text-center font-bold text-gray-800">
-              Gestión de Ayudas
+              Gestión de Ayudas Sectoriales
             </h2>
             <p className="text-gray-600 mt-1">
-              Administre las ayudas sociales de la Alcaldía de Maneiro
+              Administre las ayudas sociales sectoriales de la Alcaldía de Maneiro
             </p>
           </div>
         </div>
+        
+        {/* Controles de búsqueda y acción */}
         <div className="bg-white p-6 rounded-2xl shadow-lg border border-blue-100">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
@@ -727,7 +612,7 @@ const Dashboard = () => {
                   type="text"
                   value={searchCodigo}
                   onChange={(e) => setSearchCodigo(e.target.value)}
-                  placeholder="Código..."
+                  placeholder="Código (ej: SEC-)"
                   className="w-full px-4 py-1.5 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all text-sm"
                 />
               </div>
@@ -739,7 +624,7 @@ const Dashboard = () => {
                   type="text"
                   value={searchPalabra}
                   onChange={(e) => setSearchPalabra(e.target.value)}
-                  placeholder="Cédula, nombre, estructura..."
+                  placeholder="Sector, Responsable, Municipio..."
                   className="w-full px-4 py-1.5 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all text-sm"
                 />
               </div>
@@ -766,7 +651,7 @@ const Dashboard = () => {
                 Nuevo
               </button>
               <button
-                onClick={() => selectedAyuda && openModal(selectedAyuda)}
+                onClick={handleEdit} // Ahora requiere PIN
                 disabled={!selectedAyuda}
                 className={`px-4 py-2 rounded-xl font-medium flex items-center shadow-lg text-sm transition-all transform hover:scale-105 ${
                   selectedAyuda
@@ -799,11 +684,11 @@ const Dashboard = () => {
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                 Planilla
+                  Planilla
               </button>
               {userRole !== "recepcion" && (
                 <button
-                  onClick={handleDelete}
+                  onClick={handleDelete} // Requiere PIN
                   disabled={!selectedAyuda}
                   className={`px-4 py-2 rounded-xl font-medium flex items-center shadow-lg text-sm transition-all transform hover:scale-105 ${
                     selectedAyuda
@@ -828,7 +713,7 @@ const Dashboard = () => {
                 </button>
               )}
               <button
-                onClick={handleFinalize}
+                onClick={handleFinalize} // Requiere PIN
                 disabled={!selectedAyuda}
                 className={`px-4 py-2 rounded-xl font-medium flex items-center shadow-lg text-sm transition-all transform hover:scale-105 ${
                   selectedAyuda
@@ -855,6 +740,7 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Tabla */}
         <div className="overflow-x-auto rounded-2xl shadow-lg mt-6 border border-blue-100 bg-white">
           <Table
             sortedAyudas={sortedAyudas}
@@ -865,35 +751,39 @@ const Dashboard = () => {
           />
         </div>
 
+        {/* Contador */}
         <div className="mt-4 text-sm text-gray-600 text-center bg-white p-3 rounded-xl shadow-md border border-blue-100">
           Mostrando {sortedAyudas.length} de {ayudas.length} registros
         </div>
       </div>
 
+      {/* Modal de Formulario */}
+      {/* ⚠️ ADVERTENCIA: Debes adaptar el componente 'Modal' para renderizar el formulario sectorial
+          en lugar del formulario de ayuda individual que usaba cédula y beneficiario. */}
       <Modal
         isModalOpen={isModalOpen}
         closeModal={closeModal}
         handleSubmit={handleSubmit}
         formData={formData}
         handleInputChange={handleInputChange}
-        handleSearchBeneficiary={handleSearchBeneficiary}
+        // ELIMINADO: handleSearchBeneficiary
         selectedAyuda={selectedAyuda}
         alert={alert}
         setAlert={setAlert}
         modalTitle={modalProps.title}
         modalHeaderColor={modalProps.headerColor}
-        pinRequired={pinRequired}
-        pinInput={pinInput}
-        handlePinInputChange={(e) => setPinInput(e.target.value)}
+        // ELIMINADO: pinRequired, pinInput, handlePinInputChange
       />
 
+      {/* Modal de Confirmación de Eliminación */}
       <ConfirmDeleteModal
         isOpen={isConfirmModalOpen}
         onClose={closeConfirmModal}
         onConfirm={confirmDelete}
-        itemName={itemToDelete?.beneficiario || "este elemento"}
+        itemName={itemToDelete?.codigo || "este elemento"} // Usar el código o sector para identificar
       />
 
+      {/* Modal de PIN para acciones sensibles */}
       {isPinModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
           <div className="relative p-6 bg-white rounded-2xl shadow-xl max-w-md mx-auto">
@@ -936,23 +826,25 @@ const Dashboard = () => {
         </div>
       )}
 
-      {isFinalizeModalOpen && (
+      {/* Modal de Finalización */}
+      {isFinalizeModalOpen && selectedAyuda && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
           <div className="relative p-6 bg-white rounded-2xl shadow-xl max-w-md mx-auto">
             <h3 className="text-lg font-bold text-gray-800 mb-4">
-              📌 Finalizar Ayuda
+              ✅ Finalizar Ayuda Sectorial
             </h3>
             <p className="text-sm text-gray-600 mb-4">
-              ¿Está seguro de que desea finalizar esta ayuda? El estado cambiará a "FINALIZADA".
+              Confirme la finalización de la ayuda **{selectedAyuda.codigo}** ({selectedAyuda.sector}).
+              Puede añadir una observación de cierre.
             </p>
             <textarea
               value={finalizeObservation}
               onChange={(e) => setFinalizeObservation(e.target.value)}
-              placeholder="Observación (opcional)"
-              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6] mb-4"
-              rows="3"
+              placeholder="Observación de Cierre (Opcional)"
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:border-[#0069B6] text-sm"
+              rows={3}
             />
-            <div className="flex justify-end space-x-4">
+            <div className="flex justify-end space-x-4 mt-6">
               <button
                 onClick={closeFinalizeModal}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100"
@@ -973,4 +865,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default DashboardSectorial;

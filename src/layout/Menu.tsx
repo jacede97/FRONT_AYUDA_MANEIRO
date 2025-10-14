@@ -114,6 +114,15 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
                 </NavLink>
               </>
             )}
+            {/* Nueva entrada para Registro de Auditoría */}
+            {(userRole === "admin" || userRole === "consultor" || userRole === "seguimiento") && (
+              <NavLink to="/audit" className={getExpandedButtonClasses}>
+                <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-1.1-.9-2-2-2s-2 0.9-2 2 0.9 2 2 2 2-0.9 2-2zM12 11v6m0 0h6m-6 0v-6m0-6h-6m6 0v6" />
+                </svg>
+                <span>Registro de Auditoría</span>
+              </NavLink>
+            )}
             <div className="border-t border-gray-200 mt-4 pt-4">
               <button onClick={handleLogout} className="flex items-center px-4 py-3 text-gray-800 hover:bg-blue-100 hover:text-blue-700 rounded-lg font-medium w-full text-left text-sm">
                 <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -169,6 +178,14 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
                 </svg>
               </NavLink>
             </>
+          )}
+          {/* Nueva entrada para Registro de Auditoría (modo colapsado) */}
+          {(userRole === "admin" || userRole === "consultor" || userRole === "seguimiento") && (
+            <NavLink to="/audit" className={getCollapsedButtonClasses} title="Registro de Auditoría">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-1.1-.9-2-2-2s-2 0.9-2 2 0.9 2 2 2 2-0.9 2-2zM12 11v6m0 0h6m-6 0v-6m0-6h-6m6 0v6" />
+              </svg>
+            </NavLink>
           )}
           <div className="border-t border-gray-200 mt-4 pt-4 w-full flex justify-center">
             <button onClick={handleLogout} className="p-3 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors" title="Cerrar Sesión">

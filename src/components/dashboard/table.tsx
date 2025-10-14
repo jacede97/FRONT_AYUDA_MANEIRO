@@ -140,7 +140,11 @@ const Table = React.memo(
                     <tr
                       onClick={() => handleRowSelect(ayuda)}
                       className={`cursor-pointer transition-colors ${
-                        selectedAyuda?.id === ayuda.id ? "bg-blue-300" : "hover:bg-blue-300"
+                        selectedAyuda?.id === ayuda.id
+                          ? "bg-blue-300"
+                          : (ayuda.estado === "APROBADO / PRIMERA ENTREGA" || ayuda.estado === "FINALIZADA")
+                          ? "bg-green-100"
+                          : "hover:bg-blue-300"
                       }`}
                     >
                       <td className="p-1 text-center w-10">
@@ -170,7 +174,7 @@ const Table = React.memo(
                       <td className="px-3 py-2 text-sm">
                         <span
                           className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            ayuda.estado === "Aprobado"
+                            ayuda.estado === "APROBADO / PRIMERA ENTREGA" || ayuda.estado === "FINALIZADA"
                               ? "bg-green-100 text-green-800"
                               : ayuda.estado === "Pendiente"
                               ? "bg-yellow-100 text-yellow-800"
@@ -237,6 +241,8 @@ const Table = React.memo(
                 className={`block p-4 border rounded-xl shadow-sm cursor-pointer transition-colors ${
                   selectedAyuda?.id === ayuda.id
                     ? "bg-blue-300 border-blue-400"
+                    : (ayuda.estado === "APROBADO / PRIMERA ENTREGA" || ayuda.estado === "FINALIZADA")
+                    ? "bg-green-100 border-green-300"
                     : "bg-white border-gray-200 hover:bg-blue-50"
                 }`}
               >
@@ -265,7 +271,7 @@ const Table = React.memo(
                     <span className="font-semibold">Estado:</span>{" "}
                     <span
                       className={`px-2 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                        ayuda.estado === "Aprobado"
+                        ayuda.estado === "APROBADO / PRIMERA ENTREGA" || ayuda.estado === "FINALIZADA"
                           ? "bg-green-100 text-green-800"
                           : ayuda.estado === "Pendiente"
                           ? "bg-yellow-100 text-yellow-800"
