@@ -1,14 +1,13 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // ✅ CAMBIAR: Usar la URL de la API en Render
   baseURL: 'https://maneiro-api-mem1.onrender.com/api',
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Interceptor: agrega el token automáticamente
+// Agrega token a cada request
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token');
@@ -17,23 +16,48 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Interceptor: maneja errores 401
+// Maneja 401: intenta renovar token
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Solo intenta renovar si es 401 y no es el login/refresh
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url.includes('/token/') &&
+      !originalRequest.url.includes('/token/refresh/')
+    ) {
       originalRequest._retry = true;
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      window.location.href = '/';
+
+      try {
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) throw new Error('No refresh token');
+
+        const res = await axios.post(
+          'https://maneiro-api-mem1.onrender.com/api/token/refresh/',
+          { refresh: refreshToken }
+        );
+
+        const newAccessToken = res.data.access;
+        localStorage.setItem('access_token', newAccessToken);
+
+        // Reintenta la petición original con el nuevo token
+        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+        return api(originalRequest);
+
+      } catch (refreshError) {
+        // Si falla el refresh → logout
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('user');
+        window.location.href = '/';
+        return Promise.reject(refreshError);
+      }
     }
 
     return Promise.reject(error);
