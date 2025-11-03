@@ -2,52 +2,69 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../lib/axio.tsx'; // ✅ Usa tu instancia de axios
 
+const ROLES = [
+  { value: 'basico', label: 'Usuario Básico', color: 'gray' },
+  { value: 'consultor', label: 'Consultor', color: 'indigo' },
+  { value: 'recepcion', label: 'Recepción', color: 'green' },
+  { value: 'seguimiento', label: 'Seguimiento', color: 'yellow' },
+  { value: 'auditor', label: 'Auditor', color: 'red' },
+  { value: 'supervisor', label: 'Supervisor', color: 'blue' },
+  { value: 'admin', label: 'Administrador', color: 'purple' },
+];
+
 const RegistroUsuario = () => {
   const [usuarios, setUsuarios] = useState([]);
+  const [instituciones, setInstituciones] = useState([]);
+  const [departamentos, setDepartamentos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-
   const [editing, setEditing] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordData, setPasswordData] = useState({ new: '', confirm: '' });
+
   const [form, setForm] = useState({
     cedula: '',
     nombre: '',
     username: '',
-    role: 'basico', // ← Valor por defecto
+    role: 'basico',
     is_active: true,
+    institucion: '',
+    departamento: '',
     password: '',
     confirmPassword: '',
   });
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-
-  // === CARGAR USUARIOS ===
+  // === CARGAR DATOS ===
   useEffect(() => {
-    const fetchUsuarios = async () => {
+    const fetchData = async () => {
       try {
-        const response = await api.get('/auth/usuarios/');
-        setUsuarios(response.data);
-      } catch (err) {
+        const [usuariosRes, instRes, deptRes] = await Promise.all([
+          api.get('/auth/usuarios/'),
+          api.get('/instituciones/'),
+          api.get('/departamentos/'),
+        ]);
+        setUsuarios(usuariosRes.data);
+        setInstituciones(instRes.data);
+        setDepartamentos(deptRes.data);
+      } catch (err: any) {
         if (err.response?.status === 401) {
-          setError('Sesión expirada. Por favor inicia sesión nuevamente.');
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          localStorage.removeItem('user');
-          window.location.href = '/';
+          setError('Sesión expirada. Redirigiendo...');
+          setTimeout(() => { window.location.href = '/'; }, 2000);
         } else {
-          setError('Error al cargar usuarios. ¿Está corriendo el backend?');
+          setError('Error al cargar datos. Verifica el backend.');
         }
       } finally {
         setLoading(false);
       }
     };
-
-    fetchUsuarios();
+    fetchData();
   }, []);
 
   // === ABRIR MODAL ===
-  const openModal = (usuario) => {
+  const openModal = (usuario = null) => {
     if (usuario) {
       setEditing(usuario);
       setForm({
@@ -56,253 +73,173 @@ const RegistroUsuario = () => {
         username: usuario.username,
         role: usuario.role,
         is_active: usuario.is_active,
+        institucion: usuario.institucion?.id || '',
+        departamento: usuario.departamento?.id || '',
         password: '',
         confirmPassword: '',
       });
     } else {
       setEditing(null);
       setForm({
-        cedula: '',
-        nombre: '',
-        username: '',
-        role: 'basico', // ← Nuevo usuario empieza como básico
-        is_active: true,
-        password: '',
-        confirmPassword: '',
+        cedula: '', nombre: '', username: '', role: 'basico',
+        is_active: true, institucion: '', departamento: '',
+        password: '', confirmPassword: '',
       });
     }
     setError('');
     setIsModalOpen(true);
   };
 
-  // === MANEJAR SUBMIT ===
+  // === CAMBIAR CONTRASEÑA ===
+  const handlePasswordChange = async (e) => {
+    e.preventDefault();
+    if (passwordData.new !== passwordData.confirm) {
+      setError('Las contraseñas no coinciden.');
+      return;
+    }
+    if (passwordData.new.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    try {
+      await api.put(`/auth/usuarios/${editing.cedula}/`, { password: passwordData.new });
+      setShowPasswordModal(false);
+      setPasswordData({ new: '', confirm: '' });
+      alert('Contraseña actualizada correctamente.');
+    } catch (err: any) {
+      setError(err.response?.data?.password?.[0] || 'Error al cambiar contraseña');
+    }
+  };
+
+  // === SUBMIT PRINCIPAL ===
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSubmitting(true);
 
-    // Validaciones
-    if (!form.cedula || !/^\d{6,20}$/.test(form.cedula)) {
-      setError('Cédula inválida: solo números, entre 6 y 20 dígitos.');
-      setSubmitting(false);
-      return;
-    }
-    if (!form.nombre.trim()) {
-      setError('El nombre es obligatorio.');
-      setSubmitting(false);
-      return;
-    }
-    if (!form.username || !/^[\w.@+-]+$/.test(form.username)) {
-      setError('Username inválido: solo letras, números y . _ @ + -');
-      setSubmitting(false);
-      return;
-    }
-    if (!editing && (!form.password || form.password.length < 6)) {
-      setError('La contraseña debe tener al menos 6 caracteres.');
-      setSubmitting(false);
-      return;
-    }
-    if (!editing && form.password !== form.confirmPassword) {
-      setError('Las contraseñas no coinciden.');
-      setSubmitting(false);
-      return;
-    }
+    if (!/^\d{6,20}$/.test(form.cedula)) return setError('Cédula: 6-20 dígitos numéricos');
+    if (!form.nombre.trim()) return setError('Nombre obligatorio');
+    if (!/^[\w.@+-]+$/.test(form.username)) return setError('Username inválido');
+    if (!editing && form.password.length < 6) return setError('Contraseña ≥ 6 caracteres');
+    if (!editing && form.password !== form.confirmPassword) return setError('Contraseñas no coinciden');
+
+    const payload = {
+      cedula: form.cedula,
+      nombre: form.nombre,
+      username: form.username,
+      role: form.role,
+      is_active: form.is_active,
+      institucion: form.institucion || null,
+      departamento: form.departamento || null,
+      ...(form.password && { password: form.password }),
+    };
 
     try {
-      const userData = {
-        cedula: form.cedula,
-        nombre: form.nombre,
-        username: form.username,
-        role: form.role,
-        is_active: form.is_active,
-        ...(form.password && { password: form.password }),
-      };
-
       let response;
       if (editing) {
-        response = await api.put(`/auth/usuarios/${form.cedula}/`, userData);
+        response = await api.put(`/auth/usuarios/${form.cedula}/`, payload);
+        setUsuarios(usuarios.map(u => u.cedula === form.cedula ? response.data : u));
       } else {
-        response = await api.post('/auth/usuarios/', userData);
-      }
-
-      if (editing) {
-        setUsuarios(usuarios.map(u => 
-          u.cedula === form.cedula ? { ...u, ...form } : u
-        ));
-      } else {
+        response = await api.post('/auth/usuarios/', payload);
         setUsuarios([...usuarios, response.data]);
       }
       setIsModalOpen(false);
-    } catch (err) {
-      if (err.response?.data) {
-        setError(Object.values(err.response.data).flat().join(' '));
-      } else {
-        setError('Error al guardar el usuario');
-      }
+    } catch (err: any) {
+      setError(Object.values(err.response?.data || {}).flat().join(' '));
     } finally {
       setSubmitting(false);
     }
   };
 
-  // === TOGGLE ESTADO ===
+  // === TOGGLE ESTADO / ELIMINAR ===
   const toggleEstado = async (cedula) => {
-    const user = usuarios.find(u => u.cedula === cedula);
-    if (!user) return;
-
-    const updatedUser = {
-      ...user,
-      is_active: !user.is_active
-    };
-
     try {
-      await api.put(`/auth/usuarios/${cedula}/`, updatedUser);
-      setUsuarios(usuarios.map(u => 
-        u.cedula === cedula ? { ...u, is_active: !u.is_active } : u
-      ));
-    } catch (err) {
-      setError('Error al actualizar el estado del usuario');
+      const user = usuarios.find(u => u.cedula === cedula);
+      await api.put(`/auth/usuarios/${cedula}/`, { is_active: !user.is_active });
+      setUsuarios(usuarios.map(u => u.cedula === cedula ? { ...u, is_active: !u.is_active } : u));
+    } catch {
+      setError('Error al cambiar estado');
     }
   };
 
-  // === ELIMINAR USUARIO ===
   const eliminarUsuario = async (cedula) => {
-    if (!window.confirm('¿Estás seguro de eliminar este usuario?')) return;
-
+    if (!confirm('¿Eliminar este usuario?')) return;
     try {
       await api.delete(`/auth/usuarios/${cedula}/`);
       setUsuarios(usuarios.filter(u => u.cedula !== cedula));
-    } catch (err) {
-      setError('Error al eliminar el usuario');
+    } catch {
+      setError('Error al eliminar');
     }
   };
 
-  // === FILTRAR USUARIOS ===
-  const filteredUsuarios = usuarios.filter((u) =>
+  // === FILTRAR ===
+  const filtered = usuarios.filter(u =>
     u.cedula.includes(searchTerm) ||
     u.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // === RENDERIZADO ===
-  if (loading) {
-    return (
-      <div className="p-6 text-center">
-        <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
-        <p className="mt-2 text-gray-600">Cargando usuarios...</p>
-      </div>
-    );
-  }
+  // === RENDER ===
+  if (loading) return <div className="p-6 text-center"><div className="animate-spin inline-block w-8 h-8 border-4 border-blue-500 rounded-full"></div></div>;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto bg-white shadow-lg rounded-lg border border-gray-200">
-      <h2 className="text-2xl font-bold text-gray-800 mb-6">👥 Gestión de Usuarios</h2>
+    <div className="p-6 max-w-7xl mx-auto bg-white shadow-lg rounded-xl">
+      <h2 className="text-3xl font-bold text-gray-800 mb-6">Gestión de Usuarios</h2>
 
-      {error && (
-        <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded border border-red-200">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-4 p-4 bg-red-50 text-red-700 rounded-lg border border-red-200">{error}</div>}
 
-      <div className="mb-6">
-        <button
-          onClick={() => openModal()}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded transition flex items-center gap-2"
-        >
+      <div className="flex flex-col md:flex-row gap-4 mb-6">
+        <button onClick={() => openModal()} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium flex items-center gap-2">
           + Nuevo Usuario
         </button>
-      </div>
-
-      <div className="mb-6">
         <input
           type="text"
-          placeholder="Buscar por cédula, nombre o username..."
+          placeholder="Buscar por cédula, nombre o usuario..."
           value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-200 focus:border-blue-500"
+          onChange={e => setSearchTerm(e.target.value)}
+          className="flex-1 px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
         />
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full border border-gray-300 rounded-lg">
+      {/* TABLA */}
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="min-w-full">
           <thead className="bg-gray-50">
             <tr>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Cédula</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Nombre</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Username</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Rol</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Estado</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Fecha Registro</th>
-              <th className="py-3 px-4 text-left text-sm font-semibold text-gray-700">Acciones</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Cédula</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Nombre</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Usuario</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Rol</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Institución</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Estado</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200">
-            {filteredUsuarios.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="py-4 text-center text-gray-500">
-                  No hay usuarios registrados.
-                </td>
-              </tr>
+          <tbody className="divide-y">
+            {filtered.length === 0 ? (
+              <tr><td colSpan={7} className="text-center py-8 text-gray-500">No hay usuarios</td></tr>
             ) : (
-              filteredUsuarios.map((u) => (
+              filtered.map(u => (
                 <tr key={u.cedula} className="hover:bg-gray-50">
-                  <td className="py-3 px-4 text-sm">{u.cedula}</td>
-                  <td className="py-3 px-4 text-sm">{u.nombre}</td>
-                  <td className="py-3 px-4 text-sm">{u.username}</td>
-                  <td className="py-3 px-4 text-sm">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        u.role === 'admin'
-                          ? 'bg-purple-100 text-purple-800'
-                          : u.role === 'supervisor'
-                          ? 'bg-blue-100 text-blue-800'
-                          : u.role === 'recepcion'
-                          ? 'bg-green-100 text-green-800'
-                          : u.role === 'auditor'
-                          ? 'bg-red-100 text-red-800'
-                          : u.role === 'seguimiento'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : u.role === 'consultor'
-                          ? 'bg-indigo-100 text-indigo-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {u.role === 'admin' && 'Administrador'}
-                      {u.role === 'supervisor' && 'Supervisor'}
-                      {u.role === 'recepcion' && 'Recepción'}
-                      {u.role === 'consultor' && 'Consultor'}
-                      {u.role === 'seguimiento' && 'Seguimiento'}
-                      {u.role === 'auditor' && 'Auditor'}
-                      {u.role === 'basico' && 'Usuario Básico'}
+                  <td className="px-4 py-3 text-sm">{u.cedula}</td>
+                  <td className="px-4 py-3 text-sm">{u.nombre}</td>
+                  <td className="px-4 py-3 text-sm">{u.username}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium bg-${ROLES.find(r => r.value === u.role)?.color || 'gray'}-100 text-${ROLES.find(r => r.value === u.role)?.color || 'gray'}-800`}>
+                      {ROLES.find(r => r.value === u.role)?.label}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-sm">
-                    <button
-                      onClick={() => toggleEstado(u.cedula)}
-                      className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        u.is_active
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
+                  <td className="px-4 py-3 text-sm">{u.institucion?.nombre || '-'}</td>
+                  <td className="px-4 py-3">
+                    <button onClick={() => toggleEstado(u.cedula)} className={`px-3 py-1 rounded-full text-xs ${u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                       {u.is_active ? 'Activo' : 'Inactivo'}
                     </button>
                   </td>
-                  <td className="py-3 px-4 text-sm">
-                    {new Date(u.date_joined).toLocaleDateString()}
-                  </td>
-                  <td className="py-3 px-4 text-sm space-x-2">
-                    <button
-                      onClick={() => openModal(u)}
-                      className="text-blue-600 hover:underline text-sm font-medium"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => eliminarUsuario(u.cedula)}
-                      className="text-red-600 hover:underline text-sm font-medium"
-                    >
-                      Eliminar
-                    </button>
+                  <td className="px-4 py-3 text-sm space-x-3">
+                    <button onClick={() => openModal(u)} className="text-blue-600 hover:underline">Editar</button>
+                    <button onClick={() => setShowPasswordModal(true) || setEditing(u)} className="text-orange-600 hover:underline">Contraseña</button>
+                    <button onClick={() => eliminarUsuario(u.cedula)} className="text-red-600 hover:underline">Eliminar</button>
                   </td>
                 </tr>
               ))
@@ -311,141 +248,90 @@ const RegistroUsuario = () => {
         </table>
       </div>
 
-      {/* MODAL */}
+      {/* MODAL PRINCIPAL */}
       {isModalOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setIsModalOpen(false)}
-        >
-          <div 
-            className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-screen overflow-y-auto"
-            onClick={e => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setIsModalOpen(false)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-screen overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                {editing ? 'Editar Usuario' : 'Crear Nuevo Usuario'}
-              </h3>
-
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded border border-red-200">
-                  {error}
-                </div>
-              )}
-
+              <h3 className="text-xl font-bold mb-4">{editing ? 'Editar Usuario' : 'Nuevo Usuario'}</h3>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Cédula *</label>
-                    <input
-                      type="text"
-                      name="cedula"
-                      value={form.cedula}
-                      onChange={(e) => setForm({ ...form, cedula: e.target.value })}
-                      placeholder="12345678"
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                      disabled={!!editing}
-                    />
+                    <label className="block text-sm font-medium mb-1">Cédula *</label>
+                    <input value={form.cedula} onChange={e => setForm({ ...form, cedula: e.target.value })} disabled={!!editing} className="w-full px-3 py-2 border rounded-lg" placeholder="12345678" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Nombre Completo *</label>
-                    <input
-                      type="text"
-                      name="nombre"
-                      value={form.nombre}
-                      onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                      placeholder="Juan Pérez"
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                    />
+                    <label className="block text-sm font-medium mb-1">Nombre Completo *</label>
+                    <input value={form.nombre} onChange={e => setForm({ ...form, nombre: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder="Juan Pérez" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Nombre de Usuario *</label>
-                    <input
-                      type="text"
-                      name="username"
-                      value={form.username}
-                      onChange={(e) => setForm({ ...form, username: e.target.value })}
-                      placeholder="usuario123"
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                    />
+                    <label className="block text-sm font-medium mb-1">Usuario *</label>
+                    <input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} className="w-full px-3 py-2 border rounded-lg" placeholder="juan.perez" />
                   </div>
-
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Rol</label>
-                    <select
-                      name="role"
-                      value={form.role}
-                      onChange={(e) => setForm({ ...form, role: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="basico">Usuario Básico</option>
-                      <option value="consultor">Consultor</option>
-                      <option value="recepcion">Recepción</option>
-                      <option value="seguimiento">Seguimiento</option>
-                      <option value="auditor">Auditor</option>
-                      <option value="supervisor">Supervisor</option>
-                      <option value="admin">Administrador</option>
+                    <label className="block text-sm font-medium mb-1">Rol</label>
+                    <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })} className="w-full px-3 py-2 border rounded-lg">
+                      {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </select>
                   </div>
-
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Institución</label>
+                    <select value={form.institucion} onChange={e => setForm({ ...form, institucion: e.target.value, departamento: '' })} className="w-full px-3 py-2 border rounded-lg">
+                      <option value="">Sin institución</option>
+                      {instituciones.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Departamento</label>
+                    <select value={form.departamento} onChange={e => setForm({ ...form, departamento: e.target.value })} className="w-full px-3 py-2 border rounded-lg" disabled={!form.institucion}>
+                      <option value="">Sin departamento</option>
+                      {departamentos.filter(d => d.institucion?.id === Number(form.institucion)).map(d => (
+                        <option key={d.id} value={d.id}>{d.nombre}</option>
+                      ))}
+                    </select>
+                  </div>
                   {!editing && (
                     <>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">Contraseña *</label>
-                        <input
-                          type="password"
-                          name="password"
-                          value={form.password}
-                          onChange={(e) => setForm({ ...form, password: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <label className="block text-sm font-medium mb-1">Contraseña *</label>
+                        <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
                       </div>
-
                       <div>
-                        <label className="block text-sm font-medium text-gray-700">Confirmar Contraseña *</label>
-                        <input
-                          type="password"
-                          name="confirmPassword"
-                          value={form.confirmPassword}
-                          onChange={(e) => setForm({ ...form, confirmPassword: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500"
-                        />
+                        <label className="block text-sm font-medium mb-1">Confirmar *</label>
+                        <input type="password" value={form.confirmPassword} onChange={e => setForm({ ...form, confirmPassword: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
                       </div>
                     </>
                   )}
                 </div>
-
                 <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="is_active"
-                    checked={form.is_active}
-                    onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                    className="mr-2 h-4 w-4"
-                  />
-                  <label className="text-sm text-gray-700">Usuario Activo</label>
+                  <input type="checkbox" checked={form.is_active} onChange={e => setForm({ ...form, is_active: e.target.checked })} className="mr-2" />
+                  <label>Usuario activo</label>
                 </div>
-
-                <div className="flex justify-end space-x-3 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => setIsModalOpen(false)}
-                    className="px-4 py-2 text-gray-600 bg-gray-100 rounded hover:bg-gray-200 transition text-sm font-medium"
-                    disabled={submitting}
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition font-medium text-sm"
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Guardando...' : editing ? 'Actualizar' : 'Registrar'}
+                <div className="flex justify-end gap-3 pt-4">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button>
+                  <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-70">
+                    {submitting ? 'Guardando...' : editing ? 'Actualizar' : 'Crear'}
                   </button>
                 </div>
               </form>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL CONTRASEÑA */}
+      {showPasswordModal && editing && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowPasswordModal(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold mb-4">Cambiar Contraseña</h3>
+            <form onSubmit={handlePasswordChange} className="space-y-4">
+              <input type="password" placeholder="Nueva contraseña" value={passwordData.new} onChange={e => setPasswordData({ ...passwordData, new: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+              <input type="password" placeholder="Confirmar" value={passwordData.confirm} onChange={e => setPasswordData({ ...passwordData, confirm: e.target.value })} className="w-full px-3 py-2 border rounded-lg" />
+              <div className="flex justify-end gap-3">
+                <button type="button" onClick={() => setShowPasswordModal(false)} className="px-4 py-2 bg-gray-200 rounded-lg">Cancelar</button>
+                <button type="submit" className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700">Cambiar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
