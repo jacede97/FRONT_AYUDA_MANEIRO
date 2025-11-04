@@ -64,7 +64,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       };
       
       // Renueva el token cada 15 minutos (900000 ms). Esto es mucho más seguro y eficiente.
-      interval = setInterval(refresh, 15 * 60 * 1000); 
+      interval = setInterval(refresh, 23 * 60 * 60 * 1000);
     }
 
     // Función de limpieza para evitar que el intervalo se siga ejecutando
