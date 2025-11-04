@@ -388,121 +388,139 @@ const Dashboard = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (
-      !formData.cedula ||
-      !formData.beneficiario ||
-      !formData.nacionalidad ||
-      !formData.sexo ||
-      !formData.municipio ||
-      !formData.parroquia
-    ) {
-      setAlert({
-        show: true,
-        message:
-          "Por favor, complete todos los campos requeridos (cédula, beneficiario, nacionalidad, sexo, municipio, parroquia).",
-        type: "error",
-      });
-      return;
-    }
+  // VALIDACIONES
+  if (
+    !formData.cedula ||
+    !formData.beneficiario ||
+    !formData.nacionalidad ||
+    !formData.sexo ||
+    !formData.municipio ||
+    !formData.parroquia
+  ) {
+    setAlert({
+      show: true,
+      message: "Por favor, complete todos los campos requeridos (cédula, beneficiario, nacionalidad, sexo, municipio, parroquia).",
+      type: "error",
+    });
+    return;
+  }
 
-    if (formData.telefono && !/^\d{10}$/.test(formData.telefono)) {
-      setAlert({
-        show: true,
-        message: "El teléfono debe tener exactamente 10 dígitos numéricos.",
-        type: "error",
-      });
-      return;
-    }
+  if (formData.telefono && !/^\d{10}$/.test(formData.telefono)) {
+    setAlert({
+      show: true,
+      message: "El teléfono debe tener exactamente 10 dígitos numéricos.",
+      type: "error",
+    });
+    return;
+  }
 
-    if (pinRequired && (!pinInput || pinInput !== "270725")) {
-      setAlert({
-        show: true,
-        message: "PIN incorrecto. No se puede registrar la ayuda.",
-        type: "error",
-      });
-      return;
-    }
+  if (pinRequired && (!pinInput || pinInput !== "270725")) {
+    setAlert({
+      show: true,
+      message: "PIN incorrecto. No se puede registrar la ayuda.",
+      type: "error",
+    });
+    return;
+  }
 
-    let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
-    if (!selectedAyuda) {
-      const maxId = ayudas.reduce((max, ayuda) => {
-        const num = parseInt(ayuda.codigo?.replace("AYU-", "") || "0", 10);
-        return isNaN(num) ? max : Math.max(max, num);
-      }, 0);
-      generatedCodigo = `AYU-${String(maxId + 1).padStart(3, "0")}`;
-    }
+  // GENERAR CÓDIGO
+  let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
+  if (!selectedAyuda) {
+    const maxId = ayudas.reduce((max, ayuda) => {
+      const num = parseInt(ayuda.codigo?.replace("AYU-", "") || "0", 10);
+      return isNaN(num) ? max : Math.max(max, num);
+    }, 0);
+    generatedCodigo = `AYU-${String(maxId + 1).padStart(3, "0")}`;
+  }
 
-    const currentDate = new Date().toISOString();
+  const currentDate = new Date().toISOString();
 
-    const apiData = {
-      codigo: generatedCodigo,
-      cedula: formData.cedula,
-      beneficiario: formData.beneficiario,
-      nacionalidad: formData.nacionalidad === "V" ? "V" : "E",
-      sexo: formData.sexo === "Masculino" ? "M" : "F",
-      fechaNacimiento: formData.fechaNacimiento,
-      parroquia: formData.parroquia,
-      municipio: formData.municipio,
-      estructura: formData.estructura || "",
-      telefono: formData.telefono || "",
-      direccion: formData.direccion || "",
-      calle: formData.calle || "",
-      institucion: formData.institucion || "",
-      estado: formData.estado || "REGISTRADO / RECIBIDO",
-      tipo: formData.tipo || "",
-      observacion: formData.observacion || "",
-      responsableInstitucion: formData.responsableInstitucion || "",
-      subtipo: formData.subtipo || "",
-      fecha_registro: currentDate,
-      fecha_actualizacion: currentDate,
-    };
-
-    let tempId = null;
-    if (!selectedAyuda) {
-      tempId = Date.now();
-      const newAyuda = { ...apiData, id: tempId };
-      setAyudas((prev) => [newAyuda, ...prev]);
-    }
-
-    try {
-      if (selectedAyuda) {
-        await axios.put(
-          `https://maneiro-api-mem1.onrender.com/api/${selectedAyuda.id}/`,
-          apiData
-        );
-        setAlert({
-          show: true,
-          message: "Ayuda actualizada exitosamente.",
-          type: "success",
-        });
-      } else {
-        await axios.post("https://maneiro-api-mem1.onrender.com/api/", apiData);
-        setAlert({
-          show: true,
-          message: "Nueva ayuda registrada exitosamente.",
-          type: "success",
-        });
-      }
-      closeModal();
-      setSelectedAyuda(null);
-      fetchAyudas(false, true); // Fuerza refresco inmediato
-    } catch (error) {
-      console.error("Error al guardar la ayuda:", error);
-      if (!selectedAyuda && tempId) {
-        setAyudas((prev) => prev.filter((a) => a.id !== tempId));
-      }
-      setAlert({
-        show: true,
-        message: `Error al guardar la ayuda: ${
-          error.response?.data?.detail || error.message
-        }`,
-        type: "error",
-      });
-    }
+  const apiData = {
+    codigo: generatedCodigo,
+    cedula: formData.cedula,
+    beneficiario: formData.beneficiario,
+    nacionalidad: formData.nacionalidad === "V" ? "V" : "E",
+    sexo: formData.sexo === "Masculino" ? "M" : "F",
+    fechaNacimiento: formData.fechaNacimiento,
+    parroquia: formData.parroquia,
+    municipio: formData.municipio,
+    estructura: formData.estructura || "",
+    telefono: formData.telefono || "",
+    direccion: formData.direccion || "",
+    calle: formData.calle || "",
+    institucion: formData.institucion || "",
+    estado: formData.estado || "REGISTRADO / RECIBIDO",
+    tipo: formData.tipo || "",
+    observacion: formData.observacion || "",
+    responsableInstitucion: formData.responsableInstitucion || "",
+    subtipo: formData.subtipo || "",
+    fecha_registro: currentDate,
+    fecha_actualizacion: currentDate,
   };
+
+  let tempId = null;
+  if (!selectedAyuda) {
+    tempId = Date.now();
+    const newAyuda = { ...apiData, id: tempId };
+    setAyudas((prev) => [newAyuda, ...prev]);
+  }
+
+  try {
+    let savedAyuda;
+
+    if (selectedAyuda) {
+      await axios.put(
+        `https://maneiro-api-mem1.onrender.com/api/${selectedAyuda.id}/`,
+        apiData
+      );
+      savedAyuda = { ...selectedAyuda, ...apiData };
+    } else {
+      const response = await axios.post("https://maneiro-api-mem1.onrender.com/api/", apiData);
+      savedAyuda = response.data; // Django devuelve el objeto creado
+    }
+
+    // ENVIAR A N8N
+    await axios.post(
+      "https://maneiro.app.n8n.cloud/webhook/ayuda-registrada",
+      {
+        accion: selectedAyuda ? "editada" : "creada",
+        ayuda: savedAyuda,
+        usuario: JSON.parse(localStorage.getItem("user") || "{}").username || "desconocido"
+      }
+    ).catch((err) => {
+      console.warn("n8n no respondió (no crítico):", err);
+      // NO rompemos el flujo si n8n falla
+    });
+
+    setAlert({
+      show: true,
+      message: selectedAyuda
+        ? "Ayuda actualizada y enviada a n8n."
+        : "Nueva ayuda registrada y enviada a n8n.",
+      type: "success",
+    });
+
+    closeModal();
+    setSelectedAyuda(null);
+    fetchAyudas(false, true);
+
+  } catch (error) {
+    console.error("Error al guardar la ayuda:", error);
+    if (!selectedAyuda && tempId) {
+      setAyudas((prev) => prev.filter((a) => a.id !== tempId));
+    }
+    setAlert({
+      show: true,
+      message: `Error al guardar la ayuda: ${
+        error.response?.data?.detail || error.message
+      }`,
+      type: "error",
+    });
+  }
+};
 
   const requirePinForAction = (action) => {
     if (!selectedAyuda) return;
