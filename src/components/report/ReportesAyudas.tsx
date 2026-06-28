@@ -143,7 +143,7 @@ const ReportesAyudas: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const API_URL = "http://127.0.0.1:8000/api/";
+        const API_URL = "https://maneiro-api-mem1.onrender.com/api/";
         const response = await axios.get<Ayuda[]>(API_URL, { timeout: 30000 });
 
         const fetchedData = Array.isArray(response.data)
@@ -208,7 +208,7 @@ const ReportesAyudas: React.FC = () => {
 
   const compareWithApi = async (cachedReportes) => {
     try {
-      const response = await axios.get("http://127.0.0.1:8000/api/", { timeout: 10000 });
+      const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/", { timeout: 10000 });
       const apiReportes = Array.isArray(response.data)
         ? response.data.map((item) => ({
             ...item,
@@ -714,7 +714,7 @@ const ReportesAyudas: React.FC = () => {
             Por favor, asegúrate de que tu servidor de Django esté corriendo y
             que la API esté devolviendo JSON en{" "}
             <code className="font-mono text-sm">
-              http://127.0.0.1:8000/api/
+              https://maneiro-api-mem1.onrender.com/api/
             </code>
           </p>
           <button
