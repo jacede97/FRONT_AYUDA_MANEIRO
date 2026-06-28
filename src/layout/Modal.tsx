@@ -78,19 +78,8 @@ const Modal = ({
 
   const [estadoOptions] = useState([
     { value: "REGISTRADO / RECIBIDO", label: "REGISTRADO / RECIBIDO" },
-    { value: "EN REVISIÓN", label: "EN REVISIÓN" },
-    { value: "OBSERVADO", label: "OBSERVADO" },
-    { value: "VALIDADO / APROBADO", label: "VALIDADO / APROBADO" },
-    { value: "RECHAZADO", label: "RECHAZADO" },
-    { value: "EN PROCESO DE ASIGNACIÓN", label: "EN PROCESO DE ASIGNACIÓN" },
-    { value: "PENDIENTE DE RETIRO", label: "PENDIENTE DE RETIRO" },
-    { value: "ENTREGADA", label: "ENTREGADA" },
-    { value: "NO ENTREGADA", label: "NO ENTREGADA" },
-    { value: "DERIVADO A OTRO MUNICIPIO / INSTITUCIÓN", label: "DERIVADO A OTRO MUNICIPIO / INSTITUCIÓN" },
-    { value: "ARCHIVADO / CERRADO", label: "ARCHIVADO / CERRADO" },
-    { value: "EN ESPERA DE RECURSOS", label: "EN ESPERA DE RECURSOS" },
-    { value: "REASIGNADO", label: "REASIGNADO" },
-    { value: "EN APELACIÓN", label: "EN APELACIÓN" },
+    { value: "APROBADA", label: "APROBADA" },
+    { value: "FINALIZADA", label: "FINALIZADA" },
   ]);
 
   useEffect(() => {
