@@ -1,10 +1,17 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import axios from "axios";
 import Table from "./table";
 import Modal from "../../layout/Modal";
 import Alert from "../Alert";
 import ConfirmDeleteModal from "../../layout/ConfirmDeleteModal";
 import { generatePlanilla } from "./documento";
+
+interface ValidationInfo {
+  show: boolean;
+  message: string;
+  type: 'info' | 'warning' | 'error' | 'success';
+  existingAyudas?: any[];
+}
 
 const Dashboard = () => {
   const [alert, setAlert] = useState({ show: false, message: "", type: "" });
@@ -49,11 +56,17 @@ const Dashboard = () => {
   const [isFinalizeModalOpen, setIsFinalizeModalOpen] = useState(false);
   const [finalizeObservation, setFinalizeObservation] = useState("");
 
-  // Obtener el rol del usuario desde localStorage
-  const user = JSON.parse(localStorage.getItem("user") || '{}');
-  const userRole = user.role || "basico";
+  const [validationInfo, setValidationInfo] = useState<ValidationInfo>({
+    show: false,
+    message: '',
+    type: 'info',
+    existingAyudas: []
+  });
 
-  // Ref para almacenar la última versión de ayudas desde la API
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userRole = user.role || "basico";
+  const userInstitucion = user.institucion ? user.institucion.trim() : "";
+
   const lastApiData = useRef(null);
 
   useEffect(() => {
@@ -100,7 +113,7 @@ const Dashboard = () => {
   const fetchAyudas = useCallback(async (showAlert = true, force = false) => {
     console.log("INTENTANDO: Cargar ayudas...");
     const cacheKey = "ayudas_cache";
-    const cacheExpiration = 86400000; // 24 horas en milisegundos
+    const cacheExpiration = 86400000;
     const cachedData = localStorage.getItem(cacheKey);
 
     if (!force && cachedData) {
@@ -108,13 +121,11 @@ const Dashboard = () => {
       if (Date.now() - timestamp < cacheExpiration) {
         console.log("ÉXITO: Cargando desde caché");
         setAyudas(cachedAyudas);
-        // Comparar con la API en background si hay cambios
         compareWithApi(cachedAyudas);
         return;
       }
     }
 
-    // Si fuerza refresco o no hay caché válido, consulta la API
     try {
       const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/");
       console.log("ÉXITO: Respuesta de la API (datos crudos de Ayudas):", response.data);
@@ -140,10 +151,9 @@ const Dashboard = () => {
         };
       });
 
-      // Guarda en caché con timestamp
       localStorage.setItem(cacheKey, JSON.stringify({ data: apiAyudas, timestamp: Date.now() }));
       setAyudas(apiAyudas);
-      lastApiData.current = apiAyudas; // Actualiza la última versión conocida de la API
+      lastApiData.current = apiAyudas;
 
       if (showAlert) {
         setAlert({
@@ -188,8 +198,7 @@ const Dashboard = () => {
         tipo: ayuda.tipo || "Desconocido",
       }));
 
-      // Comparar longitud y contenido (por ID)
-      const hasChanges = cachedAyudas.length !== apiAyudas.length || 
+      const hasChanges = cachedAyudas.length !== apiAyudas.length ||
         !cachedAyudas.every((cached) => apiAyudas.some((api) => api.id === cached.id && JSON.stringify(api) === JSON.stringify(cached)));
 
       if (hasChanges) {
@@ -210,28 +219,27 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    fetchAyudas(true); // Llama siempre a fetchAyudas en el montaje
+    fetchAyudas(true);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         console.log("App visible, intentando refrescar datos en background...");
-        fetchAyudas(false); // Refresca sin mostrar alerta
+        fetchAyudas(false);
       }
     };
 
-    // Intervalo para verificar cambios cada 5 minutos (300000 ms)
     const checkInterval = setInterval(() => {
       const cachedData = localStorage.getItem("ayudas_cache");
       if (cachedData) {
         const { data: cachedAyudas } = JSON.parse(cachedData);
         compareWithApi(cachedAyudas);
       }
-    }, 300000); // 5 minutos
+    }, 300000);
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      clearInterval(checkInterval); // Limpia el intervalo al desmontar
+      clearInterval(checkInterval);
     };
   }, [fetchAyudas]);
 
@@ -248,6 +256,46 @@ const Dashboard = () => {
     });
 
     return recentAyudas.length >= 2;
+  };
+
+  const checkBeneficiaryHistory = (cedula: string, tipoActual?: string) => {
+    const existing = ayudas.filter(a => 
+      a.cedula === cedula && 
+      (selectedAyuda ? a.id !== selectedAyuda.id : true)
+    );
+
+    if (existing.length === 0) {
+      setValidationInfo({
+        show: false,
+        message: '',
+        type: 'info',
+        existingAyudas: []
+      });
+      return null;
+    }
+
+    const tiposPrevios = [...new Set(existing.map(a => a.tipo))];
+    const sameType = tipoActual && tiposPrevios.includes(tipoActual);
+
+    let message = '';
+    let type: 'info' | 'warning' | 'error' = 'info';
+
+    if (sameType) {
+      message = `⚠️ Esta persona ya ha recibido el tipo de ayuda "${tipoActual}" anteriormente. Tipos previos: ${tiposPrevios.join(', ')}. ¿Desea registrar de todas formas?`;
+      type = 'warning';
+    } else {
+      message = `ℹ️ Esta persona ya ha sido beneficiada anteriormente con: ${tiposPrevios.join(', ')}.${tipoActual ? ` El nuevo registro es de tipo "${tipoActual}".` : ''}`;
+      type = 'info';
+    }
+
+    setValidationInfo({
+      show: true,
+      message,
+      type,
+      existingAyudas: existing
+    });
+
+    return existing;
   };
 
   const handleRowSelect = (ayuda) => {
@@ -282,6 +330,8 @@ const Dashboard = () => {
         estructura: data.estructura || "",
       }));
 
+      checkBeneficiaryHistory(cedula);
+
       const requiresPin = checkIfPinRequired(cedula, ayudas);
       setPinRequired(requiresPin);
       if (!requiresPin) setPinInput("");
@@ -309,6 +359,7 @@ const Dashboard = () => {
         parroquia: "",
         municipio: "",
       }));
+      setValidationInfo({ show: false, message: '', type: 'info', existingAyudas: [] });
     }
   };
 
@@ -340,6 +391,7 @@ const Dashboard = () => {
         title: "Editar Ayuda",
         headerColor: "bg-[#FFCB00]",
       });
+      setValidationInfo({ show: false, message: '', type: 'info', existingAyudas: [] });
     } else {
       setSelectedAyuda(null);
       setFormData({
@@ -367,6 +419,7 @@ const Dashboard = () => {
         title: "Nueva Ayuda",
         headerColor: "bg-[#0095D4]",
       });
+      setValidationInfo({ show: false, message: '', type: 'info', existingAyudas: [] });
     }
     setIsModalOpen(true);
   };
@@ -375,6 +428,7 @@ const Dashboard = () => {
     setIsModalOpen(false);
     setPinInput("");
     setAlert({ show: false, message: "", type: "" });
+    setValidationInfo({ show: false, message: '', type: 'info', existingAyudas: [] });
   };
 
   const handleInputChange = (e) => {
@@ -385,142 +439,162 @@ const Dashboard = () => {
       const requiresPin = checkIfPinRequired(value, ayudas);
       setPinRequired(requiresPin);
       if (!requiresPin) setPinInput("");
-    }
-  };
-
- const handleSubmit = async (e) => {
-  e.preventDefault();
-
-  // VALIDACIONES
-  if (
-    !formData.cedula ||
-    !formData.beneficiario ||
-    !formData.nacionalidad ||
-    !formData.sexo ||
-    !formData.municipio ||
-    !formData.parroquia
-  ) {
-    setAlert({
-      show: true,
-      message: "Por favor, complete todos los campos requeridos (cédula, beneficiario, nacionalidad, sexo, municipio, parroquia).",
-      type: "error",
-    });
-    return;
-  }
-
-  if (formData.telefono && !/^\d{10}$/.test(formData.telefono)) {
-    setAlert({
-      show: true,
-      message: "El teléfono debe tener exactamente 10 dígitos numéricos.",
-      type: "error",
-    });
-    return;
-  }
-
-  if (pinRequired && (!pinInput || pinInput !== "270725")) {
-    setAlert({
-      show: true,
-      message: "PIN incorrecto. No se puede registrar la ayuda.",
-      type: "error",
-    });
-    return;
-  }
-
-  // GENERAR CÓDIGO
-  let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
-  if (!selectedAyuda) {
-    const maxId = ayudas.reduce((max, ayuda) => {
-      const num = parseInt(ayuda.codigo?.replace("AYU-", "") || "0", 10);
-      return isNaN(num) ? max : Math.max(max, num);
-    }, 0);
-    generatedCodigo = `AYU-${String(maxId + 1).padStart(3, "0")}`;
-  }
-
-  const currentDate = new Date().toISOString();
-
-  const apiData = {
-    codigo: generatedCodigo,
-    cedula: formData.cedula,
-    beneficiario: formData.beneficiario,
-    nacionalidad: formData.nacionalidad === "V" ? "V" : "E",
-    sexo: formData.sexo === "Masculino" ? "M" : "F",
-    fechaNacimiento: formData.fechaNacimiento,
-    parroquia: formData.parroquia,
-    municipio: formData.municipio,
-    estructura: formData.estructura || "",
-    telefono: formData.telefono || "",
-    direccion: formData.direccion || "",
-    calle: formData.calle || "",
-    institucion: formData.institucion || "",
-    estado: formData.estado || "REGISTRADO / RECIBIDO",
-    tipo: formData.tipo || "",
-    observacion: formData.observacion || "",
-    responsableInstitucion: formData.responsableInstitucion || "",
-    subtipo: formData.subtipo || "",
-    fecha_registro: currentDate,
-    fecha_actualizacion: currentDate,
-  };
-
-  let tempId = null;
-  if (!selectedAyuda) {
-    tempId = Date.now();
-    const newAyuda = { ...apiData, id: tempId };
-    setAyudas((prev) => [newAyuda, ...prev]);
-  }
-
-  try {
-    let savedAyuda;
-
-    if (selectedAyuda) {
-      await axios.put(
-        `https://maneiro-api-mem1.onrender.com/api/${selectedAyuda.id}/`,
-        apiData
-      );
-      savedAyuda = { ...selectedAyuda, ...apiData };
-    } else {
-      const response = await axios.post("https://maneiro-api-mem1.onrender.com/api/", apiData);
-      savedAyuda = response.data; // Django devuelve el objeto creado
-    }
-
-    // ENVIAR A N8N
-    await axios.post(
-      "https://maneiro.app.n8n.cloud/webhook/ayuda-registrada",
-      {
-        accion: selectedAyuda ? "editada" : "creada",
-        ayuda: savedAyuda,
-        usuario: JSON.parse(localStorage.getItem("user") || "{}").username || "desconocido"
+      if (validationInfo.show) {
+        setValidationInfo({ show: false, message: '', type: 'info', existingAyudas: [] });
       }
-    ).catch((err) => {
-      console.warn("n8n no respondió (no crítico):", err);
-      // NO rompemos el flujo si n8n falla
-    });
-
-    setAlert({
-      show: true,
-      message: selectedAyuda
-        ? "Ayuda actualizada y enviada a n8n."
-        : "Nueva ayuda registrada y enviada a n8n.",
-      type: "success",
-    });
-
-    closeModal();
-    setSelectedAyuda(null);
-    fetchAyudas(false, true);
-
-  } catch (error) {
-    console.error("Error al guardar la ayuda:", error);
-    if (!selectedAyuda && tempId) {
-      setAyudas((prev) => prev.filter((a) => a.id !== tempId));
     }
-    setAlert({
-      show: true,
-      message: `Error al guardar la ayuda: ${
-        error.response?.data?.detail || error.message
-      }`,
-      type: "error",
-    });
-  }
-};
+
+    if (name === "tipo" && formData.cedula) {
+      const tipo = value;
+      checkBeneficiaryHistory(formData.cedula, tipo);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (
+      !formData.cedula ||
+      !formData.beneficiario ||
+      !formData.nacionalidad ||
+      !formData.sexo ||
+      !formData.municipio ||
+      !formData.parroquia
+    ) {
+      setAlert({
+        show: true,
+        message: "Por favor, complete todos los campos requeridos (cédula, beneficiario, nacionalidad, sexo, municipio, parroquia).",
+        type: "error",
+      });
+      return;
+    }
+
+    if (formData.telefono && !/^\d{10}$/.test(formData.telefono)) {
+      setAlert({
+        show: true,
+        message: "El teléfono debe tener exactamente 10 dígitos numéricos.",
+        type: "error",
+      });
+      return;
+    }
+
+    if (pinRequired && (!pinInput || pinInput !== "270725")) {
+      setAlert({
+        show: true,
+        message: "PIN incorrecto. No se puede registrar la ayuda.",
+        type: "error",
+      });
+      return;
+    }
+
+    let generatedCodigo = selectedAyuda ? selectedAyuda.codigo : "";
+    if (!selectedAyuda) {
+      const maxId = ayudas.reduce((max, ayuda) => {
+        const num = parseInt(ayuda.codigo?.replace("AYU-", "") || "0", 10);
+        return isNaN(num) ? max : Math.max(max, num);
+      }, 0);
+      generatedCodigo = `AYU-${String(maxId + 1).padStart(3, "0")}`;
+    }
+
+    const currentDate = new Date().toISOString();
+
+    // ✅ Obtener el username del usuario
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const username = user.username || null;
+
+    // ✅ Base de datos para crear o editar
+    const baseData = {
+      codigo: generatedCodigo,
+      cedula: formData.cedula,
+      beneficiario: formData.beneficiario,
+      nacionalidad: formData.nacionalidad === "V" ? "V" : "E",
+      sexo: formData.sexo === "Masculino" ? "M" : "F",
+      fechaNacimiento: formData.fechaNacimiento,
+      parroquia: formData.parroquia,
+      municipio: formData.municipio,
+      estructura: formData.estructura || "",
+      telefono: formData.telefono || "",
+      direccion: formData.direccion || "",
+      calle: formData.calle || "",
+      institucion: formData.institucion || "",
+      estado: formData.estado || "REGISTRADO / RECIBIDO",
+      tipo: formData.tipo || "",
+      observacion: formData.observacion || "",
+      responsableInstitucion: formData.responsableInstitucion || "",
+      subtipo: formData.subtipo || "",
+      fecha_actualizacion: currentDate,
+      usuario_actualizacion_username: username,
+    };
+
+    let tempId = null;
+    if (!selectedAyuda) {
+      tempId = Date.now();
+      const newAyuda = { ...baseData, fecha_registro: currentDate, usuario_registro_username: username, id: tempId };
+      setAyudas((prev) => [newAyuda, ...prev]);
+    }
+
+    try {
+      let savedAyuda;
+
+      if (selectedAyuda) {
+        // ✅ En edición: NO enviar fecha_registro ni usuario_registro
+        const updateData = { ...baseData };
+        delete updateData.fecha_registro;
+        delete updateData.usuario_registro_username;
+
+        await axios.put(
+          `https://maneiro-api-mem1.onrender.com/api/${selectedAyuda.id}/`,
+          updateData
+        );
+        savedAyuda = { ...selectedAyuda, ...baseData };
+      } else {
+        // ✅ En creación: enviar fecha_registro y usuario_registro
+        const createData = {
+          ...baseData,
+          fecha_registro: currentDate,
+          usuario_registro_username: username,
+        };
+        const response = await axios.post("https://maneiro-api-mem1.onrender.com/api/", createData);
+        savedAyuda = response.data;
+      }
+
+      await axios.post(
+        "https://maneiro.app.n8n.cloud/webhook/ayuda-registrada",
+        {
+          accion: selectedAyuda ? "editada" : "creada",
+          ayuda: savedAyuda,
+          usuario: username || "desconocido",
+        }
+      ).catch((err) => {
+        console.warn("n8n no respondió (no crítico):", err);
+      });
+
+      setAlert({
+        show: true,
+        message: selectedAyuda
+          ? "Ayuda actualizada y enviada a n8n."
+          : "Nueva ayuda registrada y enviada a n8n.",
+        type: "success",
+      });
+
+      closeModal();
+      setSelectedAyuda(null);
+      fetchAyudas(false, true);
+
+    } catch (error) {
+      console.error("Error al guardar la ayuda:", error);
+      if (!selectedAyuda && tempId) {
+        setAyudas((prev) => prev.filter((a) => a.id !== tempId));
+      }
+      setAlert({
+        show: true,
+        message: `Error al guardar la ayuda: ${
+          error.response?.data?.detail || error.message
+        }`,
+        type: "error",
+      });
+    }
+  };
 
   const requirePinForAction = (action) => {
     if (!selectedAyuda) return;
@@ -571,11 +645,16 @@ const Dashboard = () => {
   const confirmFinalize = async () => {
     if (!selectedAyuda) return;
 
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const username = user.username || null;
+    const currentDate = new Date().toISOString();
+
     const updatedData = {
       ...selectedAyuda,
       estado: "FINALIZADA",
       observacion: finalizeObservation || selectedAyuda.observacion || "",
-      fecha_actualizacion: new Date().toISOString(),
+      fecha_actualizacion: currentDate, // ✅ Solo actualiza fecha_actualizacion
+      usuario_actualizacion_username: username,
     };
 
     try {
@@ -590,7 +669,7 @@ const Dashboard = () => {
       });
       setIsFinalizeModalOpen(false);
       setFinalizeObservation("");
-      fetchAyudas(false, true); // Fuerza refresco inmediato
+      fetchAyudas(false, true);
     } catch (error) {
       console.error("Error al finalizar la ayuda:", error);
       setAlert({
@@ -622,7 +701,7 @@ const Dashboard = () => {
         setIsConfirmModalOpen(false);
         setItemToDelete(null);
         setSelectedAyuda(null);
-        fetchAyudas(false, true); // Fuerza refresco inmediato
+        fetchAyudas(false, true);
       } catch (error) {
         console.error("Error al eliminar la ayuda:", error);
         setAlert({
@@ -644,49 +723,53 @@ const Dashboard = () => {
   };
 
   const filteredAyudas = ayudas.filter((ayuda) => {
+    if (userInstitucion) {
+      const instAyuda = (ayuda.institucion || "").trim();
+      if (instAyuda !== userInstitucion) return false;
+    }
+
     const matchesPalabra =
       ayuda.beneficiario?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
       ayuda.cedula?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
-      ayuda.estructura?.toLowerCase().includes(searchPalabra.toLowerCase());
+      ayuda.estructura?.toLowerCase().includes(searchPalabra.toLowerCase()) ||
+      ayuda.institucion?.toLowerCase().includes(searchPalabra.toLowerCase());
 
     const matchesCodigo = () => {
       if (!searchCodigo.trim()) return true;
-
       const userQuery = searchCodigo.trim().toUpperCase();
       const codigo = ayuda.codigo?.toUpperCase();
       if (!codigo) return false;
-
       if (codigo === userQuery) return true;
-
       const match = codigo.match(/AYU-(\d+)/);
       if (!match) return false;
-
       const numeroSecuencial = parseInt(match[1], 10);
       const numUsuario = parseInt(userQuery.replace(/^AYU-/, ""), 10);
-
       if (!isNaN(numUsuario) && !isNaN(numeroSecuencial)) {
         return numeroSecuencial === numUsuario;
       }
-
       return codigo.includes(userQuery) || match[1].includes(userQuery);
     };
 
     return matchesCodigo() && matchesPalabra;
   });
 
-  const sortedAyudas = [...filteredAyudas].sort((a, b) => {
+  const sortedAyudas = useMemo(() => {
+    const sortable = [...filteredAyudas];
     if (sortConfig.key === "codigo") {
-      const aNum = parseInt(a.codigo?.replace("AYU-", "") || "0", 10);
-      const bNum = parseInt(b.codigo?.replace("AYU-", "") || "0", 10);
-      return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
+      return sortable.sort((a, b) => {
+        const aNum = parseInt(a.codigo?.replace("AYU-", "") || "0", 10);
+        const bNum = parseInt(b.codigo?.replace("AYU-", "") || "0", 10);
+        return sortConfig.direction === "asc" ? aNum - bNum : bNum - aNum;
+      });
     } else if (sortConfig.key) {
-      const aValue = a[sortConfig.key] ?? "";
-      const bValue = b[sortConfig.key] ?? "";
-      return sortConfig.direction === "asc" ? 
-        aValue.localeCompare(bValue) : bValue.localeCompare(aValue);
+      return sortable.sort((a, b) => {
+        const aVal = (a[sortConfig.key] ?? "").toString().toLowerCase();
+        const bVal = (b[sortConfig.key] ?? "").toString().toLowerCase();
+        return sortConfig.direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      });
     }
-    return 0;
-  });
+    return sortable;
+  }, [filteredAyudas, sortConfig]);
 
   const requestSort = (key) => {
     let direction = "asc";
@@ -702,6 +785,9 @@ const Dashboard = () => {
     }
     return "";
   };
+
+  const totalAyudas = filteredAyudas.length;
+  const totalAyudasAll = ayudas.length;
 
   return (
     <div className="flex-1 p-2 font-sans bg-gray-50 rounded-xl">
@@ -732,8 +818,14 @@ const Dashboard = () => {
             <p className="text-gray-600 mt-1">
               Administre las ayudas sociales de la Alcaldía de Maneiro
             </p>
+            {userInstitucion && (
+              <div className="mt-1 text-sm bg-blue-100 text-blue-800 px-3 py-1 rounded-full inline-block">
+                🏛️ Institución: {userInstitucion}
+              </div>
+            )}
           </div>
         </div>
+
         <div className="bg-white p-6 rounded-2xl shadow-lg border border-blue-100">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto">
@@ -768,18 +860,8 @@ const Dashboard = () => {
                 onClick={() => openModal()}
                 className="bg-[#0069B6] text-white px-4 py-2 rounded-xl hover:bg-[#003578] transition-all font-medium flex items-center shadow-lg text-sm transform hover:scale-105"
               >
-                <svg
-                  className="w-4 h-4 mr-1"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  />
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 Nuevo
               </button>
@@ -792,18 +874,8 @@ const Dashboard = () => {
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                <svg
-                  className="w-4 h-4 mr-1"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                  />
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                 </svg>
                 Editar
               </button>
@@ -817,7 +889,7 @@ const Dashboard = () => {
                 <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                 Planilla
+                Planilla
               </button>
               {userRole !== "recepcion" && (
                 <button
@@ -829,18 +901,8 @@ const Dashboard = () => {
                       : "bg-gray-300 text-gray-500 cursor-not-allowed"
                   }`}
                 >
-                  <svg
-                    className="w-4 h-4 mr-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
                   Eliminar
                 </button>
@@ -854,18 +916,8 @@ const Dashboard = () => {
                     : "bg-gray-300 text-gray-500 cursor-not-allowed"
                 }`}
               >
-                <svg
-                  className="w-4 h-4 mr-1"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
+                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
                 Finalizar
               </button>
@@ -884,7 +936,17 @@ const Dashboard = () => {
         </div>
 
         <div className="mt-4 text-sm text-gray-600 text-center bg-white p-3 rounded-xl shadow-md border border-blue-100">
-          Mostrando {sortedAyudas.length} de {ayudas.length} registros
+          Mostrando {sortedAyudas.length} de {totalAyudas} registros
+          {userInstitucion && (
+            <span className="ml-2 text-blue-600 font-medium">
+              (Filtrado por: {userInstitucion})
+            </span>
+          )}
+          {totalAyudasAll > totalAyudas && (
+            <span className="ml-2 text-gray-400">
+              (Total general: {totalAyudasAll})
+            </span>
+          )}
         </div>
       </div>
 
@@ -903,6 +965,8 @@ const Dashboard = () => {
         pinRequired={pinRequired}
         pinInput={pinInput}
         handlePinInputChange={(e) => setPinInput(e.target.value)}
+        validationInfo={validationInfo}
+        setValidationInfo={setValidationInfo}
       />
 
       <ConfirmDeleteModal
@@ -915,9 +979,7 @@ const Dashboard = () => {
       {isPinModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
           <div className="relative p-6 bg-white rounded-2xl shadow-xl max-w-md mx-auto">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">
-              🔐 Validación de Seguridad
-            </h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-4">🔐 Validación de Seguridad</h3>
             <p className="text-sm text-gray-600 mb-4">
               Para {actionToConfirm === "edit" ? "editar" : actionToConfirm === "delete" ? "eliminar" : "finalizar"} esta
               ayuda, ingrese el PIN de seguridad.
@@ -957,9 +1019,7 @@ const Dashboard = () => {
       {isFinalizeModalOpen && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
           <div className="relative p-6 bg-white rounded-2xl shadow-xl max-w-md mx-auto">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">
-              📌 Finalizar Ayuda
-            </h3>
+            <h3 className="text-lg font-bold text-gray-800 mb-4">📌 Finalizar Ayuda</h3>
             <p className="text-sm text-gray-600 mb-4">
               ¿Está seguro de que desea finalizar esta ayuda? El estado cambiará a "FINALIZADA".
             </p>

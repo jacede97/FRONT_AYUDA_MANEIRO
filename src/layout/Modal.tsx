@@ -18,6 +18,8 @@ const Modal = ({
   pinRequired,
   pinInput,
   handlePinInputChange,
+  validationInfo,
+  setValidationInfo,
 }) => {
   const [estructuras, setEstructuras] = useState([]);
   const [calles, setCalles] = useState([]);
@@ -276,18 +278,8 @@ const Modal = ({
             className="text-white hover:text-gray-100 transition-colors"
             aria-label="Cerrar modal"
           >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -299,6 +291,64 @@ const Modal = ({
               type={alert.type}
               setAlert={setAlert}
             />
+          )}
+
+          {/* ✅ ALERTA DE VALIDACIÓN (sticky dentro del modal) */}
+          {validationInfo.show && (
+            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm pt-2 pb-3 rounded-xl">
+              <div
+                className={`p-4 rounded-xl border ${
+                  validationInfo.type === 'warning'
+                    ? 'bg-yellow-50 border-yellow-400 text-yellow-800'
+                    : validationInfo.type === 'info'
+                    ? 'bg-blue-50 border-blue-400 text-blue-800'
+                    : validationInfo.type === 'error'
+                    ? 'bg-red-50 border-red-400 text-red-800'
+                    : 'bg-green-50 border-green-400 text-green-800'
+                }`}
+              >
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    {validationInfo.type === 'warning' && (
+                      <svg className="w-5 h-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    {validationInfo.type === 'info' && (
+                      <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    {validationInfo.type === 'error' && (
+                      <svg className="w-5 h-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="ml-3 flex-1">
+                    <p className="text-sm font-medium whitespace-pre-line">
+                      {validationInfo.message}
+                    </p>
+                    {validationInfo.existingAyudas && validationInfo.existingAyudas.length > 0 && (
+                      <details className="mt-2">
+                        <summary className="text-xs cursor-pointer hover:underline text-gray-600">
+                          📋 Ver detalles de ayudas anteriores ({validationInfo.existingAyudas.length})
+                        </summary>
+                        <ul className="mt-1 text-xs space-y-1 max-h-32 overflow-y-auto">
+                          {validationInfo.existingAyudas.map((ayuda, idx) => (
+                            <li key={idx} className="border-b border-gray-200 pb-1 last:border-0">
+                              <span className="font-semibold">{ayuda.codigo}</span> - {ayuda.tipo} 
+                              <span className="text-gray-500 ml-1">({ayuda.estado})</span>
+                              <span className="text-gray-400 ml-1">- {ayuda.fecha}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -313,7 +363,13 @@ const Modal = ({
                     type="text"
                     name="cedula"
                     value={formData.cedula}
-                    onChange={handleInputGenericChange}
+                    onChange={(e) => {
+                      handleInputChange(e);
+                      // Limpiar validación al cambiar cédula
+                      if (validationInfo.show) {
+                        setValidationInfo({ show: false, message: '', type: 'info', existingAyudas: [] });
+                      }
+                    }}
                     required
                     className="flex-1 px-4 py-3 border border-gray-300 rounded-l-xl focus:border-[#0069B6] transition-all"
                     placeholder="V-12345678"
@@ -326,18 +382,8 @@ const Modal = ({
                       className="bg-[#0095D4] text-white p-3 rounded-r-xl hover:bg-[#0069B6] transition-colors"
                       title="Buscar beneficiario en el registro electoral"
                     >
-                      <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                        />
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                       </svg>
                     </button>
                   )}
@@ -356,15 +402,8 @@ const Modal = ({
                   onChange={handleInputGenericChange}
                   required
                   disabled={!!selectedAyuda}
-                  title={
-                    selectedAyuda
-                      ? "Este campo se llenó automáticamente y no puede ser modificado."
-                      : ""
-                  }
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    selectedAyuda
-                      ? "bg-gray-100 cursor-not-allowed"
-                      : ""
+                    selectedAyuda ? "bg-gray-100 cursor-not-allowed" : ""
                   }`}
                   placeholder="Nombre completo"
                 />
@@ -381,15 +420,8 @@ const Modal = ({
                   onChange={handleInputGenericChange}
                   required
                   disabled={!!formData.nacionalidad}
-                  title={
-                    formData.nacionalidad
-                      ? "Este campo se llenó automáticamente y no puede ser modificado."
-                      : ""
-                  }
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    formData.nacionalidad
-                      ? "bg-gray-100 cursor-not-allowed"
-                      : ""
+                    formData.nacionalidad ? "bg-gray-100 cursor-not-allowed" : ""
                   }`}
                 >
                   <option value="">Seleccione una nacionalidad</option>
@@ -409,11 +441,6 @@ const Modal = ({
                   onChange={handleInputGenericChange}
                   required
                   disabled={!!formData.sexo}
-                  title={
-                    formData.sexo
-                      ? "Este campo se llenó automáticamente y no puede ser modificado."
-                      : ""
-                  }
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
                     formData.sexo ? "bg-gray-100 cursor-not-allowed" : ""
                   }`}
@@ -435,11 +462,9 @@ const Modal = ({
                   value={formData.fechaNacimiento || ""}
                   onChange={handleInputGenericChange}
                   required
-                  disabled={!!selectedAyuda && !!formData.fechaNacimiento} // Solo deshabilitar si es edición y tiene valor
+                  disabled={!!selectedAyuda && !!formData.fechaNacimiento}
                   className={`w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all ${
-                    (!!selectedAyuda && !!formData.fechaNacimiento)
-                      ? "bg-gray-100 cursor-not-allowed"
-                      : ""
+                    (!!selectedAyuda && !!formData.fechaNacimiento) ? "bg-gray-100 cursor-not-allowed" : ""
                   }`}
                 />
               </div>
@@ -603,9 +628,15 @@ const Modal = ({
                   name="tipo"
                   options={memoizedTiposAyuda}
                   value={getSelectedOption(memoizedTiposAyuda, formData.tipo)}
-                  onChange={(selectedOption) =>
-                    handleSelectChange("tipo", selectedOption)
-                  }
+                  onChange={(selectedOption) => {
+                    const value = selectedOption?.value || '';
+                    handleSelectChange("tipo", selectedOption);
+                    // ✅ Actualizar validación al cambiar el tipo
+                    if (formData.cedula) {
+                      // El Dashboard actualizará la validación mediante handleInputChange
+                      // Este cambio se propaga porque handleSelectChange llama a handleInputChange
+                    }
+                  }}
                   styles={customStyles}
                   placeholder="Seleccione un tipo"
                   isDisabled={loadingInstituciones || !formData.institucion}
@@ -676,7 +707,7 @@ const Modal = ({
                 rows="4"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:border-[#0069B6] transition-all"
                 placeholder="Describa detalladamente la situación, necesidades y motivos de la solicitud..."
-              ></textarea>
+              />
             </div>
 
             {pinRequired && (

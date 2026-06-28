@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Granim from 'granim';
 import api from '../lib/axio.tsx';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -10,6 +11,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const { login } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (canvasRef.current) {
@@ -39,15 +41,39 @@ const Login = () => {
     e.preventDefault();
     setLoginError('');
     setLoading(true);
+
     try {
+      console.log('🔐 [Login] Intentando login con:', username);
+
       const response = await api.post('/auth/login/', {
         username: username.trim(),
         password: password,
       });
+
+      console.log('✅ [Login] Respuesta del servidor:', response.data);
+
+      // ✅ Verifica que la respuesta tenga los campos esperados
+      if (!response.data.access || !response.data.refresh || !response.data.user) {
+        console.error('❌ [Login] La respuesta no tiene los campos esperados:', response.data);
+        setLoginError('Error en la respuesta del servidor. Contacte al administrador.');
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Guarda en el contexto (que guarda en localStorage)
       login(response.data);
+
+      // ✅ Redirige al dashboard después de un breve retraso para asegurar que el estado se actualice
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 100);
+
     } catch (err: any) {
+      console.error('❌ [Login] Error:', err);
       if (err.response?.data?.detail) {
         setLoginError(err.response.data.detail);
+      } else if (err.response?.data?.message) {
+        setLoginError(err.response.data.message);
       } else {
         setLoginError('Usuario o contraseña incorrecta');
       }
@@ -64,7 +90,7 @@ const Login = () => {
         <div className="text-center mb-6">
           <img
             src="/LOGO.png"
-            alt="Logo de la Aplicación"
+            alt="Logo"
             className="h-20 w-auto mx-auto block mb-3"
             onError={(e) => {
               e.currentTarget.src = 'https://placehold.co/80x80/cccccc/ffffff?text=LOGO';
@@ -73,6 +99,7 @@ const Login = () => {
           />
           <h1 className="text-2xl font-extrabold text-gray-800">Gestión de Ayudas</h1>
         </div>
+
         <form onSubmit={handleLogin} className="space-y-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Usuario</label>
@@ -99,11 +126,13 @@ const Login = () => {
               autoComplete="current-password"
             />
           </div>
+
           {loginError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
               {loginError}
             </div>
           )}
+
           <button
             type="submit"
             className="w-full bg-[#0069B6] text-white py-2 px-4 rounded-xl hover:bg-[#003578] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
@@ -111,25 +140,9 @@ const Login = () => {
           >
             {loading ? (
               <>
-                <svg
-                  className="animate-spin h-5 w-5 text-white"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                >
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                  ></circle>
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  ></path>
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
                 Iniciando...
               </>
@@ -138,8 +151,9 @@ const Login = () => {
             )}
           </button>
         </form>
+
         <div className="text-center mt-4 text-sm text-gray-500">
-          <p>Usa tu nombre de usuario y contraseña de administrador</p>
+          <p>Usa tu nombre de usuario y contraseña</p>
         </div>
       </div>
     </div>

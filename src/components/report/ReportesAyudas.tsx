@@ -2,11 +2,10 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from 'jspdf-autotable';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import Dexie from "dexie"; // Asegúrate de tener 'npm install dexie'
+import Dexie from "dexie";
 
-// Define la interfaz para la estructura de un reporte de ayuda
 interface Ayuda {
   id: number;
   codigo: string;
@@ -29,9 +28,16 @@ interface Ayuda {
   observacion: string;
   fecha_registro: string;
   fecha_actualizacion: string;
+  // ✅ Nuevos campos de auditoría
+  usuario_registro_nombre?: string;
+  usuario_actualizacion_nombre?: string;
 }
 
 const ReportesAyudas: React.FC = () => {
+  // 🔽 Obtener usuario y su institución desde localStorage
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const userInstitucion = user.institucion ? user.institucion.trim() : "";
+
   const [allReportes, setAllReportes] = useState<Ayuda[]>([]);
   const [filteredReportes, setFilteredReportes] = useState<Ayuda[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -61,7 +67,6 @@ const ReportesAyudas: React.FC = () => {
   const tableRef = useRef<HTMLTableElement>(null);
   const contentWidthRef = useRef<HTMLDivElement>(null);
 
-  // Inicializar Dexie para IndexedDB
   const db = new Dexie("ReportesDB");
   db.version(1).stores({
     reportes: "++id, timestamp",
@@ -116,9 +121,8 @@ const ReportesAyudas: React.FC = () => {
 
   const fetchReportes = async (showAlert = true, force = false, retries = 3) => {
     console.log("INTENTANDO: Cargar reportes...");
-    const cacheExpiration = 86400000; // 24 horas en milisegundos
+    const cacheExpiration = 86400000;
 
-    // Intentar cargar desde Dexie (IndexedDB)
     if (!force) {
       try {
         const cached = await db.table("reportes").orderBy("timestamp").last();
@@ -127,7 +131,7 @@ const ReportesAyudas: React.FC = () => {
           setAllReportes(cached.data);
           setFilteredReportes(cached.data);
           compareWithApi(cached.data);
-          setLoading(false); // Marcar como no cargando si usa caché
+          setLoading(false);
           return;
         }
       } catch (e) {
@@ -135,13 +139,12 @@ const ReportesAyudas: React.FC = () => {
       }
     }
 
-    // Intentar cargar desde la API con reintentos
     const fetchWithRetry = async (attempt = 0) => {
       try {
         setLoading(true);
         setError(null);
-        const API_URL = "https://maneiro-api-mem1.onrender.com/api/";
-        const response = await axios.get<Ayuda[]>(API_URL, { timeout: 30000 }); // 30 segundos de timeout
+        const API_URL = "http://127.0.0.1:8000/api/";
+        const response = await axios.get<Ayuda[]>(API_URL, { timeout: 30000 });
 
         const fetchedData = Array.isArray(response.data)
           ? response.data.map((item) => ({
@@ -166,7 +169,7 @@ const ReportesAyudas: React.FC = () => {
         }
       } catch (err) {
         if (axios.isAxiosError(err) && err.code === 'ECONNABORTED' && attempt < retries) {
-          const delay = Math.pow(2, attempt) * 1000; // Delay exponencial: 1s, 3s, 7s
+          const delay = Math.pow(2, attempt) * 1000;
           console.warn(`Intento ${attempt + 1} falló por timeout. Reintentando en ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return fetchWithRetry(attempt + 1);
@@ -205,7 +208,7 @@ const ReportesAyudas: React.FC = () => {
 
   const compareWithApi = async (cachedReportes) => {
     try {
-      const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/", { timeout: 10000 });
+      const response = await axios.get("http://127.0.0.1:8000/api/", { timeout: 10000 });
       const apiReportes = Array.isArray(response.data)
         ? response.data.map((item) => ({
             ...item,
@@ -257,7 +260,7 @@ const ReportesAyudas: React.FC = () => {
           console.warn("Error al comparar con la API en intervalo:", e);
         }
       }
-    }, 300000); // 5 minutos
+    }, 300000);
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
@@ -266,8 +269,15 @@ const ReportesAyudas: React.FC = () => {
     };
   }, []);
 
+  // ===== FILTRO =====
   useEffect(() => {
     let currentFiltered = allReportes;
+
+    if (userInstitucion) {
+      currentFiltered = currentFiltered.filter(
+        (reporte) => (reporte.institucion || "").trim() === userInstitucion
+      );
+    }
 
     if (filterFromDate || filterToDate) {
       currentFiltered = currentFiltered.filter((reporte) => {
@@ -320,7 +330,17 @@ const ReportesAyudas: React.FC = () => {
 
     setFilteredReportes(currentFiltered);
     setCurrentPage(1);
-  }, [filterFromDate, filterToDate, filterEstructura, filterTipo, filterEstado, filterInstitucion, searchQuery, allReportes]);
+  }, [
+    allReportes,
+    userInstitucion,
+    filterFromDate,
+    filterToDate,
+    filterEstructura,
+    filterTipo,
+    filterEstado,
+    filterInstitucion,
+    searchQuery,
+  ]);
 
   const uniqueEstructuras = useMemo(() => {
     const estructuras = new Set<string>();
@@ -469,6 +489,7 @@ const ReportesAyudas: React.FC = () => {
     return pageNumbers;
   };
 
+  // ✅ EXPORTAR A EXCEL CON LAS NUEVAS COLUMNAS
   const exportToExcel = () => {
     if (filteredReportes.length === 0) {
       displayMessage("No hay datos para exportar a Excel.", "info");
@@ -476,7 +497,25 @@ const ReportesAyudas: React.FC = () => {
     }
 
     try {
-      const ws = XLSX.utils.json_to_sheet(filteredReportes);
+      const dataToExport = filteredReportes.map((reporte) => ({
+        "Código": reporte.codigo,
+        "Fecha Registro": reporte.fecha_registro.substring(0, 10),
+        "Cédula": reporte.cedula,
+        "Beneficiario": reporte.beneficiario,
+        "Municipio": reporte.municipio,
+        "Estructura": reporte.estructura,
+        "Teléfono": reporte.telefono,
+        "Institución": reporte.institucion,
+        "Tipo": reporte.tipo,
+        "Subtipo": reporte.subtipo,
+        "Estado": reporte.estado,
+        "Observación": reporte.observacion || "",
+        // ✅ NUEVAS COLUMNAS DE AUDITORÍA
+        "Registrado por": reporte.usuario_registro_nombre || "N/A",
+        "Actualizado por": reporte.usuario_actualizacion_nombre || "N/A",
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Reporte de Ayudas");
       XLSX.writeFile(wb, "reporte_ayudas.xlsx");
@@ -494,37 +533,165 @@ const ReportesAyudas: React.FC = () => {
     }
 
     try {
-      const doc = new jsPDF("landscape");
-      doc.text("Reporte de Ayudas", 14, 15);
+      const doc = new jsPDF('landscape');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
 
-      const tableColumn = [
-        "ID", "Código", "Fecha Registro", "Cédula", "Beneficiario", "Nacionalidad", "Sexo",
-        "Fecha Nacimiento", "Municipio", "Parroquia", "Estructura", "Teléfono", "Calle",
-        "Dirección", "Institución", "Responsable Institución", "Tipo", "Subtipo",
-        "Estado", "Observación", "Fecha Actualización",
-      ];
-      const tableRows = filteredReportes.map((reporte) => [
-        reporte.id, reporte.codigo, reporte.fecha_registro.substring(0, 10),
-        reporte.cedula, reporte.beneficiario, reporte.nacionalidad, reporte.sexo,
-        reporte.fechaNacimiento ?? "", reporte.municipio, reporte.parroquia, reporte.estructura,
-        reporte.telefono, reporte.calle, reporte.direccion, reporte.institucion,
-        reporte.responsableInstitucion, reporte.tipo, reporte.subtipo, reporte.estado,
-        reporte.observacion, reporte.fecha_actualizacion.substring(0, 10),
-      ]);
-
-      (doc as any).autoTable({
-        head: [tableColumn], body: tableRows, startY: 20,
-        styles: { fontSize: 8, cellPadding: 2, overflow: "linebreak" },
-        headStyles: { fillColor: [0, 149, 212], textColor: 255, fontStyle: "bold" },
-        alternateRowStyles: { fillColor: [245, 245, 245] },
-        margin: { top: 10, right: 10, bottom: 10, left: 10 },
+      const sortedData = [...filteredReportes].sort((a, b) => {
+        const structA = (a.estructura || '').toLowerCase();
+        const structB = (b.estructura || '').toLowerCase();
+        if (structA < structB) return -1;
+        if (structA > structB) return 1;
+        const dateA = new Date(a.fecha_registro);
+        const dateB = new Date(b.fecha_registro);
+        return dateB.getTime() - dateA.getTime();
       });
 
-      doc.save("reporte_ayudas.pdf");
+      const logoBase64 = '/LOGO.png';
+      try {
+        doc.addImage(logoBase64, 'PNG', 15, 10, 30, 25);
+      } catch (e) {
+        console.warn('Logo no encontrado, continuando sin él.');
+      }
+
+      doc.setFontSize(18);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text('REPORTE DE AYUDAS', pageWidth / 2 + 15, 22, { align: 'center' });
+
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const fechaGenerado = new Date().toLocaleDateString('es-VE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+      doc.text(`Fecha Generado: ${fechaGenerado}`, 15, 38);
+      doc.text('Documento Interno - Control de Ayudas', pageWidth - 15, 38, { align: 'right' });
+
+      let filtrosTexto = '';
+      if (filterFromDate && filterToDate) filtrosTexto += `Fecha: ${filterFromDate} a ${filterToDate}  |  `;
+      if (filterEstructura) filtrosTexto += `Estructura: ${filterEstructura}  |  `;
+      if (filterTipo) filtrosTexto += `Tipo: ${filterTipo}  |  `;
+      if (filterEstado) filtrosTexto += `Estado: ${filterEstado}  |  `;
+      if (filterInstitucion) filtrosTexto += `Institución: ${filterInstitucion}  |  `;
+      if (searchQuery) filtrosTexto += `Búsqueda: ${searchQuery}`;
+      if (filtrosTexto) {
+        doc.setFontSize(8);
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Filtros aplicados: ${filtrosTexto}`, 15, 45);
+      }
+
+      doc.setDrawColor(0);
+      doc.setLineWidth(0.2);
+      doc.line(15, 48, pageWidth - 15, 48);
+
+      let startY = 52;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text('RESUMEN', 15, startY);
+      startY += 6;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const resumenLines = [
+        `Total Ayudas: ${totalAyudas}`,
+        `Beneficiarios Únicos: ${totalBeneficiariosUnicos}`,
+        `Hombres: ${totalHombres}  |  Mujeres: ${totalMujeres}`,
+        `Estados: ${Object.entries(totalPorEstado).map(([k, v]) => `${k}: ${v}`).join('  |  ')}`,
+        `Tipos: ${Object.entries(totalPorTipo).map(([k, v]) => `${k}: ${v}`).join('  |  ')}`,
+      ];
+      resumenLines.forEach((line, idx) => {
+        doc.text(line, 20, startY + idx * 5);
+      });
+      startY += resumenLines.length * 5 + 4;
+
+      const tableColumn = [
+        "Código",
+        "Fecha Reg.",
+        "Cédula",
+        "Beneficiario",
+        "Municipio",
+        "Estructura",
+        "Teléfono",
+        "Institución",
+        "Tipo",
+        "Subtipo",
+        "Estado",
+        "Observación",
+        "Registrado por",
+        "Actualizado por",
+      ];
+
+      const tableRows = sortedData.map((reporte) => [
+        reporte.codigo,
+        reporte.fecha_registro.substring(0, 10),
+        reporte.cedula,
+        reporte.beneficiario,
+        reporte.municipio || "",
+        reporte.estructura,
+        reporte.telefono,
+        reporte.institucion,
+        reporte.tipo,
+        reporte.subtipo,
+        reporte.estado,
+        reporte.observacion || "",
+        reporte.usuario_registro_nombre || "N/A",
+        reporte.usuario_actualizacion_nombre || "N/A",
+      ]);
+
+      autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: startY,
+        theme: 'grid',
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 1.5,
+          lineColor: [150, 150, 150],
+          lineWidth: 0.1,
+          valign: 'middle',
+          halign: 'center',
+        },
+        headStyles: {
+          fillColor: [0, 149, 212],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          lineWidth: 0.2,
+        },
+        columnStyles: {
+          0: { cellWidth: 16 },
+          1: { cellWidth: 16 },
+          2: { cellWidth: 16 },
+          3: { cellWidth: 28, halign: 'left' },
+          4: { cellWidth: 22 },
+          5: { cellWidth: 22 },
+          6: { cellWidth: 16 },
+          7: { cellWidth: 26 },
+          8: { cellWidth: 18 },
+          9: { cellWidth: 18 },
+          10: { cellWidth: 22 },
+          11: { cellWidth: 30, halign: 'left' },
+          12: { cellWidth: 18 },
+          13: { cellWidth: 18 },
+        },
+        margin: { left: 15, right: 15 },
+        didDrawPage: (data) => {
+          const pageNum = data.pageNumber;
+          doc.setFontSize(8);
+          doc.setTextColor(0, 0, 0);
+          doc.text(`Página ${pageNum}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        },
+      });
+
+      doc.save('reporte_ayudas.pdf');
       displayMessage("Reporte exportado a PDF exitosamente.", "success");
     } catch (pdfError) {
       console.error("Error al exportar a PDF:", pdfError);
-      displayMessage("Ocurrió un error al intentar exportar a PDF. Revisa la consola para más detalles.", "error");
+      displayMessage("Ocurrió un error al intentar exportar a PDF. Revisa la consola.", "error");
     }
   };
 
@@ -547,7 +714,7 @@ const ReportesAyudas: React.FC = () => {
             Por favor, asegúrate de que tu servidor de Django esté corriendo y
             que la API esté devolviendo JSON en{" "}
             <code className="font-mono text-sm">
-              https://maneiro-api-mem1.onrender.com/api/
+              http://127.0.0.1:8000/api/
             </code>
           </p>
           <button
@@ -584,6 +751,11 @@ const ReportesAyudas: React.FC = () => {
           }}
         />
         Reportes de Ayudas
+        {userInstitucion && (
+          <span className="ml-4 text-sm bg-white/20 px-4 py-2 rounded-full">
+            🏛️ {userInstitucion}
+          </span>
+        )}
       </h1>
 
       <div className="bg-white p-6 rounded-lg shadow-lg mb-6 border border-blue-100">

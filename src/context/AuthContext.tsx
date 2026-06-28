@@ -1,7 +1,6 @@
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import api from '../lib/axio.tsx';
 
-// Define la interfaz para el contexto de autenticación
 interface AuthContextType {
   isLoggedIn: boolean;
   user: any;
@@ -10,10 +9,8 @@ interface AuthContextType {
   logout: () => void;
 }
 
-// Crea el contexto
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Define las props para el proveedor
 interface AuthProviderProps {
   children: ReactNode;
 }
@@ -23,69 +20,73 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<any>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
-  // Efecto para verificar la sesión al cargar la página.
-  // Se ejecuta una sola vez.
   useEffect(() => {
     const accessToken = localStorage.getItem('access_token');
     const storedUser = localStorage.getItem('user');
 
+    console.log('🔍 [Auth] Verificando sesión...');
+    console.log('🔍 [Auth] access_token:', accessToken ? '✅' : '❌');
+
     if (accessToken && storedUser) {
       try {
-        setUser(JSON.parse(storedUser));
+        const parsedUser = JSON.parse(storedUser);
+        setUser(parsedUser);
         setIsLoggedIn(true);
+        console.log('✅ [Auth] Sesión restaurada para:', parsedUser.username);
       } catch (e) {
-        console.error("Error al parsear el usuario del localStorage", e);
-        // Si hay un error, limpia todo y considera que no hay sesión
+        console.error('❌ [Auth] Error parseando usuario:', e);
         logout();
       }
+    } else {
+      console.log('ℹ️ [Auth] No hay sesión activa');
     }
     setLoadingAuth(false);
   }, []);
 
-  // Efecto para manejar el refresco automático del token.
-  // Solo se activa si el usuario está logueado.
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     const refreshToken = localStorage.getItem('refresh_token');
 
     if (isLoggedIn && refreshToken) {
-      // Función para renovar el token
       const refresh = async () => {
         try {
-          console.log('Refrescando token...');
+          console.log('🔄 [Auth] Refrescando token automáticamente...');
           const response = await api.post('/auth/refresh/', { refresh: refreshToken });
           localStorage.setItem('access_token', response.data.access);
-          console.log('Token renovado exitosamente.');
+          console.log('✅ [Auth] Token renovado');
         } catch (err) {
-          console.error('Error al renovar token, cerrando sesión:', err);
-          // Si el refresco falla (ej: token de refresco caducado), cierra la sesión
+          console.error('❌ [Auth] Error renovando token:', err);
           logout();
         }
       };
-      
-      // Renueva el token cada 15 minutos (900000 ms). Esto es mucho más seguro y eficiente.
       interval = setInterval(refresh, 23 * 60 * 60 * 1000);
     }
-
-    // Función de limpieza para evitar que el intervalo se siga ejecutando
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-    };
+    return () => { if (interval) clearInterval(interval); };
   }, [isLoggedIn]);
 
   const login = (userData: any) => {
-    console.log("Datos de usuario recibidos para login:", userData);
+    console.log('🔐 [Auth] Procesando login...');
+    console.log('📦 [Auth] Datos recibidos:', userData);
+
+    // ✅ Verifica que los campos existan
+    if (!userData.access || !userData.refresh || !userData.user) {
+      console.error('❌ [Auth] Faltan campos requeridos en la respuesta:', userData);
+      return;
+    }
+
     localStorage.setItem('access_token', userData.access);
     localStorage.setItem('refresh_token', userData.refresh);
     localStorage.setItem('user', JSON.stringify(userData.user));
+
+    console.log('✅ [Auth] Tokens guardados en localStorage');
+    console.log('🔑 [Auth] access_token:', userData.access.substring(0, 20) + '...');
+
     setUser(userData.user);
     setIsLoggedIn(true);
   };
 
   const logout = () => {
-    console.log("Cerrando sesión...");
+    console.log('🚪 [Auth] Cerrando sesión...');
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
@@ -102,7 +103,6 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   );
 };
 
-// Hook para consumir el contexto fácilmente
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
