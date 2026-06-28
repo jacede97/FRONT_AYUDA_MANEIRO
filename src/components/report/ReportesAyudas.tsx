@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import axios from "axios";
+import axios from "axios"; // ✅ USAR AXIOS DIRECTO (como en Dashboard)
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from 'jspdf-autotable';
@@ -28,13 +28,13 @@ interface Ayuda {
   observacion: string;
   fecha_registro: string;
   fecha_actualizacion: string;
-  // ✅ Nuevos campos de auditoría
   usuario_registro_nombre?: string;
   usuario_actualizacion_nombre?: string;
 }
 
+const API_BASE_URL = "https://maneiro-api-mem1.onrender.com/api";
+
 const ReportesAyudas: React.FC = () => {
-  // 🔽 Obtener usuario y su institución desde localStorage
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const userInstitucion = user.institucion ? user.institucion.trim() : "";
 
@@ -84,18 +84,11 @@ const ReportesAyudas: React.FC = () => {
   useEffect(() => {
     const topContainer = topScrollContainerRef.current;
     const bottomContainer = bottomScrollContainerRef.current;
-
     if (topContainer && bottomContainer) {
-      const handleScrollTop = () => {
-        bottomContainer.scrollLeft = topContainer.scrollLeft;
-      };
-      const handleScrollBottom = () => {
-        topContainer.scrollLeft = bottomContainer.scrollLeft;
-      };
-
+      const handleScrollTop = () => { bottomContainer.scrollLeft = topContainer.scrollLeft; };
+      const handleScrollBottom = () => { topContainer.scrollLeft = bottomContainer.scrollLeft; };
       topContainer.addEventListener("scroll", handleScrollTop);
       bottomContainer.addEventListener("scroll", handleScrollBottom);
-
       return () => {
         topContainer.removeEventListener("scroll", handleScrollTop);
         bottomContainer.removeEventListener("scroll", handleScrollBottom);
@@ -106,16 +99,12 @@ const ReportesAyudas: React.FC = () => {
   useEffect(() => {
     const contentWidthDiv = contentWidthRef.current;
     const tableElement = tableRef.current;
-
     if (contentWidthDiv && tableElement) {
       const observer = new ResizeObserver(() => {
         contentWidthDiv.style.width = `${tableElement.scrollWidth}px`;
       });
       observer.observe(tableElement);
-
-      return () => {
-        observer.disconnect();
-      };
+      return () => observer.disconnect();
     }
   }, [filteredReportes]);
 
@@ -143,8 +132,8 @@ const ReportesAyudas: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const API_URL = "https://maneiro-api-mem1.onrender.com/api/";
-        const response = await axios.get<Ayuda[]>(API_URL, { timeout: 30000 });
+        // ✅ USAR AXIOS DIRECTO (como en Dashboard)
+        const response = await axios.get<Ayuda[]>(`${API_BASE_URL}/`, { timeout: 30000 });
 
         const fetchedData = Array.isArray(response.data)
           ? response.data.map((item) => ({
@@ -167,36 +156,21 @@ const ReportesAyudas: React.FC = () => {
         if (showAlert) {
           displayMessage("Datos cargados exitosamente.", "success");
         }
-      } catch (err) {
-        if (axios.isAxiosError(err) && err.code === 'ECONNABORTED' && attempt < retries) {
+      } catch (err: any) {
+        console.error("❌ Error al cargar reportes:", err);
+        if (err.code === 'ECONNABORTED' && attempt < retries) {
           const delay = Math.pow(2, attempt) * 1000;
           console.warn(`Intento ${attempt + 1} falló por timeout. Reintentando en ${delay}ms...`);
           await new Promise(resolve => setTimeout(resolve, delay));
           return fetchWithRetry(attempt + 1);
-        } else {
-          console.error("Error al cargar los reportes desde Django:", err);
-          if (axios.isAxiosError(err)) {
-            const errorMessage = err.response?.data
-              ? JSON.stringify(err.response.data)
-              : err.message;
-            setError(
-              `No se pudieron cargar los reportes: ${errorMessage}. Por favor, verifique la URL de la API y el estado del backend de Django.`
-            );
-          } else if (err instanceof Error) {
-            setError(
-              `No se pudieron cargar los reportes: ${err.message}. Por favor, intente de nuevo más tarde.`
-            );
-          } else {
-            setError(
-              "No se pudieron cargar los reportes debido a un error desconocido."
-            );
-          }
-          if (showAlert) {
-            displayMessage(
-              "Error al conectar con la API. Usando datos de caché si están disponibles.",
-              "error"
-            );
-          }
+        }
+        setError(
+          err.response?.data?.detail ||
+          err.message ||
+          "Error al conectar con el servidor. Verifica que el backend esté activo."
+        );
+        if (showAlert) {
+          displayMessage("Error al cargar datos. Usando caché si está disponible.", "error");
         }
       } finally {
         setLoading(false);
@@ -208,7 +182,8 @@ const ReportesAyudas: React.FC = () => {
 
   const compareWithApi = async (cachedReportes) => {
     try {
-      const response = await axios.get("https://maneiro-api-mem1.onrender.com/api/", { timeout: 10000 });
+      // ✅ USAR AXIOS DIRECTO
+      const response = await axios.get(`${API_BASE_URL}/`, { timeout: 10000 });
       const apiReportes = Array.isArray(response.data)
         ? response.data.map((item) => ({
             ...item,
@@ -232,7 +207,7 @@ const ReportesAyudas: React.FC = () => {
         await db.table("reportes").put({ id: Date.now(), data: updatedReportes, timestamp: Date.now() });
         setAllReportes(updatedReportes);
         setFilteredReportes(updatedReportes);
-        displayMessage("Datos actualizados desde la API debido a cambios detectados.", "success");
+        displayMessage("Datos actualizados desde la API.", "success");
       } else {
         console.log("No hay cambios en la API.");
       }
@@ -246,7 +221,7 @@ const ReportesAyudas: React.FC = () => {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        console.log("App visible, intentando refrescar datos en background...");
+        console.log("App visible, refrescando datos en background...");
         fetchReportes(false);
       }
     };
@@ -489,7 +464,7 @@ const ReportesAyudas: React.FC = () => {
     return pageNumbers;
   };
 
-  // ✅ EXPORTAR A EXCEL CON LAS NUEVAS COLUMNAS
+  // ✅ EXPORTAR A EXCEL
   const exportToExcel = () => {
     if (filteredReportes.length === 0) {
       displayMessage("No hay datos para exportar a Excel.", "info");
@@ -510,7 +485,6 @@ const ReportesAyudas: React.FC = () => {
         "Subtipo": reporte.subtipo,
         "Estado": reporte.estado,
         "Observación": reporte.observacion || "",
-        // ✅ NUEVAS COLUMNAS DE AUDITORÍA
         "Registrado por": reporte.usuario_registro_nombre || "N/A",
         "Actualizado por": reporte.usuario_actualizacion_nombre || "N/A",
       }));
@@ -610,20 +584,9 @@ const ReportesAyudas: React.FC = () => {
       startY += resumenLines.length * 5 + 4;
 
       const tableColumn = [
-        "Código",
-        "Fecha Reg.",
-        "Cédula",
-        "Beneficiario",
-        "Municipio",
-        "Estructura",
-        "Teléfono",
-        "Institución",
-        "Tipo",
-        "Subtipo",
-        "Estado",
-        "Observación",
-        "Registrado por",
-        "Actualizado por",
+        "Código", "Fecha Reg.", "Cédula", "Beneficiario", "Municipio",
+        "Estructura", "Teléfono", "Institución", "Tipo", "Subtipo",
+        "Estado", "Observación", "Registrado por", "Actualizado por"
       ];
 
       const tableRows = sortedData.map((reporte) => [
@@ -663,20 +626,11 @@ const ReportesAyudas: React.FC = () => {
           lineWidth: 0.2,
         },
         columnStyles: {
-          0: { cellWidth: 16 },
-          1: { cellWidth: 16 },
-          2: { cellWidth: 16 },
-          3: { cellWidth: 28, halign: 'left' },
-          4: { cellWidth: 22 },
-          5: { cellWidth: 22 },
-          6: { cellWidth: 16 },
-          7: { cellWidth: 26 },
-          8: { cellWidth: 18 },
-          9: { cellWidth: 18 },
-          10: { cellWidth: 22 },
-          11: { cellWidth: 30, halign: 'left' },
-          12: { cellWidth: 18 },
-          13: { cellWidth: 18 },
+          0: { cellWidth: 16 }, 1: { cellWidth: 16 }, 2: { cellWidth: 16 },
+          3: { cellWidth: 28, halign: 'left' }, 4: { cellWidth: 22 },
+          5: { cellWidth: 22 }, 6: { cellWidth: 16 }, 7: { cellWidth: 26 },
+          8: { cellWidth: 18 }, 9: { cellWidth: 18 }, 10: { cellWidth: 22 },
+          11: { cellWidth: 30, halign: 'left' }, 12: { cellWidth: 18 }, 13: { cellWidth: 18 }
         },
         margin: { left: 15, right: 15 },
         didDrawPage: (data) => {
@@ -695,6 +649,7 @@ const ReportesAyudas: React.FC = () => {
     }
   };
 
+  // =============== RENDER ===============
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-white to-blue-50 p-4 font-sans rounded-xl">
@@ -714,7 +669,7 @@ const ReportesAyudas: React.FC = () => {
             Por favor, asegúrate de que tu servidor de Django esté corriendo y
             que la API esté devolviendo JSON en{" "}
             <code className="font-mono text-sm">
-              https://maneiro-api-mem1.onrender.com/api/
+              {API_BASE_URL}
             </code>
           </p>
           <button
