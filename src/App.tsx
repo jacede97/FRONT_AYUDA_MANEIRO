@@ -11,7 +11,9 @@ import RegistroUsuario from "./components/RegistroUsuario/RegistroUsuario";
 import RegistroSelectores from "./components/selectores/RegistroSelectores";
 import AdminAyudas from "./components/RegistroTiposAyudas/tipos_de_ayudas";
 import AuditLog from "./components/RegistroDeAuditoria/AuditLog";
-
+import PuertosDashboard from "./components/Puertos/puertos_dashboard";
+// ✅ Nuevo import del dashboard de Zafras
+import ZafrasDashboard from "./components/Puertos/zafras/zafras_dashboard";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { isLoggedIn, user, loadingAuth } = useAuth();
@@ -30,6 +32,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   const userRole = user?.role || "basico";
   if (!allowedRoles.includes(userRole)) {
+    // Redirige según el rol: si es puerto, a registros-puerto, sino a dashboard
+    if (userRole === "puerto") {
+      return <Navigate to="/registros-puerto" replace />;
+    }
     return <Navigate to="/dashboard" replace />;
   }
 
@@ -69,6 +75,18 @@ const MainContent = () => {
           />
           <div className="flex-1 overflow-auto p-4 lg:ml-4">
             <Routes>
+              {/* Ruta raíz: redirige según rol */}
+              <Route
+                path="/"
+                element={
+                  userRole === "puerto" ? (
+                    <Navigate to="/registros-puerto" replace />
+                  ) : (
+                    <Navigate to="/dashboard" replace />
+                  )
+                }
+              />
+
               <Route
                 path="/dashboard"
                 element={
@@ -138,7 +156,25 @@ const MainContent = () => {
                   </ProtectedRoute>
                 }
               />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+              {/* ✅ Ruta para el módulo de Puertos (Registro de Embarcaciones) */}
+              <Route
+                path="/registros-puerto"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "recepcion", "puerto"]}>
+                    <PuertosDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              {/* ✅ NUEVA RUTA para el módulo de Zafras / Temporadas de Pesca */}
+              <Route
+                path="/zafras"
+                element={
+                  <ProtectedRoute allowedRoles={["admin", "recepcion", "puerto", "consultor", "seguimiento"]}>
+                    <ZafrasDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </div>
         </div>

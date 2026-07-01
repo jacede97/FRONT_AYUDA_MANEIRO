@@ -97,7 +97,7 @@ const Login = () => {
               e.currentTarget.onerror = null;
             }}
           />
-          <h1 className="text-2xl font-extrabold text-gray-800">Gestión de Ayudas</h1>
+          <h1 className="text-2xl font-extrabold text-gray-800">Gestión</h1>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-3">

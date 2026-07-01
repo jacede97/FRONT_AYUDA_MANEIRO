@@ -78,7 +78,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole, toggleMenu, isMenuOpen 
                 <div className="absolute right-0 mt-2 w-48 bg-white shadow-lg rounded-md py-2 z-50">
                   <NavLink
                     to="/dashboard"
-                    className={getNavLinkClasses + " block px-4 py-2"}
+                    className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
                     onClick={toggleMenu}
                   >
                     Dashboard
@@ -88,7 +88,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole, toggleMenu, isMenuOpen 
                     (userRole === "admin" || userRole === "seguimiento" || userRole === "consultor") && (
                       <NavLink
                         to="/reports"
-                        className={getNavLinkClasses + " block px-4 py-2"}
+                        className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
                         onClick={toggleMenu}
                       >
                         Reportes
@@ -99,43 +99,62 @@ const Header: React.FC<HeaderProps> = ({ user, userRole, toggleMenu, isMenuOpen 
                     (userRole === "admin" || userRole === "consultor") && (
                       <NavLink
                         to="/beneficiarios"
-                        className={getNavLinkClasses + " block px-4 py-2"}
+                        className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
                         onClick={toggleMenu}
                       >
                         Beneficiarios
                       </NavLink>
                     )}
+                  {/* ✅ NUEVO: Registro de Embarcaciones */}
+                  {(userRole === "admin" || userRole === "recepcion" || userRole === "consultor" || userRole === "seguimiento") && (
+                    <NavLink
+                      to="/registros-puerto"
+                      className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
+                      onClick={toggleMenu}
+                    >
+                      Registro de Embarcaciones
+                    </NavLink>
+                  )}
                   {userRole === "admin" && (
                     <>
                       <NavLink
                         to="/selectores"
-                        className={getNavLinkClasses + " block px-4 py-2"}
+                        className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
                         onClick={toggleMenu}
                       >
                         Registro de Selectores
                       </NavLink>
                       <NavLink
                         to="/adminAyudas"
-                        className={getNavLinkClasses + " block px-4 py-2"}
+                        className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
                         onClick={toggleMenu}
                       >
                         Registro de Tipos de Ayuda
                       </NavLink>
                       <NavLink
                         to="/usuario"
-                        className={getNavLinkClasses + " block px-4 py-2"}
+                        className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
                         onClick={toggleMenu}
                       >
                         Registro de Usuario
                       </NavLink>
                       <NavLink
                         to="/configuracion"
-                        className={getNavLinkClasses + " block px-4 py-2"}
+                        className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
                         onClick={toggleMenu}
                       >
                         Configuración
                       </NavLink>
                     </>
+                  )}
+                  {(userRole === "admin" || userRole === "consultor" || userRole === "seguimiento") && (
+                    <NavLink
+                      to="/audit"
+                      className={({ isActive }) => `block px-4 py-2 ${getNavLinkClasses({ isActive })}`}
+                      onClick={toggleMenu}
+                    >
+                      Registro de Auditoría
+                    </NavLink>
                   )}
                 </div>
               )}

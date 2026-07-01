@@ -12,14 +12,14 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
   const isReceptionUser = userRole === "recepcion";
   const isBasicUser = userRole === "basico";
 
-  const getExpandedButtonClasses = ({ isActive }) => {
+  const getExpandedButtonClasses = ({ isActive }: { isActive: boolean }) => {
     const baseClasses = "flex items-center px-4 py-3 rounded-lg font-medium w-full text-left transition-colors text-sm";
     const activeClasses = "bg-blue-200 text-blue-800";
     const inactiveClasses = "text-gray-800 hover:bg-blue-100 hover:text-blue-700";
     return `${baseClasses} ${isActive ? activeClasses : inactiveClasses}`;
   };
 
-  const getCollapsedButtonClasses = ({ isActive }) => {
+  const getCollapsedButtonClasses = ({ isActive }: { isActive: boolean }) => {
     const baseClasses = "p-3 rounded-lg transition-colors";
     const activeClasses = "bg-blue-200 text-blue-800";
     const inactiveClasses = "text-gray-600 hover:bg-gray-200";
@@ -63,12 +63,15 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
             />
           </div>
           <nav className="space-y-2 flex-grow">
+            {/* Dashboard */}
             <NavLink to="/dashboard" className={getExpandedButtonClasses}>
               <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m0 0l-7 7m7-7v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
               </svg>
               <span>Dashboard</span>
             </NavLink>
+
+            {/* Reportes */}
             {!isBasicUser && (userRole === "admin" || userRole === "seguimiento" || userRole === "consultor") && (
               <NavLink to="/reports" className={getExpandedButtonClasses}>
                 <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -77,6 +80,8 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
                 <span>Reportes</span>
               </NavLink>
             )}
+
+            {/* Beneficiarios */}
             {(userRole === "admin" || userRole === "consultor" || userRole === "recepcion") && (
               <NavLink to="/beneficiarios" className={getExpandedButtonClasses}>
                 <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -85,6 +90,28 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
                 <span>Beneficiarios</span>
               </NavLink>
             )}
+
+            {/* ✅ Registro de Embarcaciones (Puertos) */}
+            {(userRole === "admin" || userRole === "puerto") && (
+              <NavLink to="/registros-puerto" className={getExpandedButtonClasses}>
+                <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4M8 10h8M4 10a8 8 0 0016 0H4zm0 10h16" />
+                </svg>
+                <span>Registro de Embarcaciones</span>
+              </NavLink>
+            )}
+
+            {/* ✅ NUEVO: Zafras / Temporadas de Pesca */}
+            {(userRole === "admin" || userRole === "puerto" || userRole === "consultor" || userRole === "seguimiento") && (
+              <NavLink to="/zafras" className={getExpandedButtonClasses}>
+                <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 3h3m-6 3h6" />
+                </svg>
+                <span>Zafras / Temporadas</span>
+              </NavLink>
+            )}
+
+            {/* Administración (solo admin) */}
             {userRole === "admin" && (
               <>
                 <NavLink to="/selectores" className={getExpandedButtonClasses}>
@@ -114,7 +141,8 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
                 </NavLink>
               </>
             )}
-            {/* Nueva entrada para Registro de Auditoría */}
+
+            {/* Auditoría */}
             {(userRole === "admin" || userRole === "consultor" || userRole === "seguimiento") && (
               <NavLink to="/audit" className={getExpandedButtonClasses}>
                 <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -123,6 +151,7 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
                 <span>Registro de Auditoría</span>
               </NavLink>
             )}
+
             <div className="border-t border-gray-200 mt-4 pt-4">
               <button onClick={handleLogout} className="flex items-center px-4 py-3 text-gray-800 hover:bg-blue-100 hover:text-blue-700 rounded-lg font-medium w-full text-left text-sm">
                 <svg className="w-5 h-5 mr-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,11 +164,14 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
         </div>
       ) : (
         <div className="p-3 flex-grow flex flex-col items-center space-y-3">
+          {/* Dashboard (colapsado) */}
           <NavLink to="/dashboard" className={getCollapsedButtonClasses} title="Dashboard">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m0 0l-7 7m7-7v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
             </svg>
           </NavLink>
+
+          {/* Reportes (colapsado) */}
           {!isBasicUser && (userRole === "admin" || userRole === "seguimiento" || userRole === "consultor") && (
             <NavLink to="/reports" className={getCollapsedButtonClasses} title="Reportes">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -147,6 +179,8 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
               </svg>
             </NavLink>
           )}
+
+          {/* Beneficiarios (colapsado) */}
           {(userRole === "admin" || userRole === "consultor" || userRole === "recepcion") && (
             <NavLink to="/beneficiarios" className={getCollapsedButtonClasses} title="Beneficiarios">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -154,6 +188,26 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
               </svg>
             </NavLink>
           )}
+
+          {/* Registro de Embarcaciones (colapsado) */}
+          {(userRole === "admin" || userRole === "puerto") && (
+            <NavLink to="/registros-puerto" className={getCollapsedButtonClasses} title="Registro de Embarcaciones">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4M8 10h8M4 10a8 8 0 0016 0H4zm0 10h16" />
+              </svg>
+            </NavLink>
+          )}
+
+          {/* ✅ Zafras / Temporadas (colapsado) */}
+          {(userRole === "admin" || userRole === "puerto" || userRole === "consultor" || userRole === "seguimiento") && (
+            <NavLink to="/zafras" className={getCollapsedButtonClasses} title="Zafras / Temporadas">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 3h3m-6 3h6" />
+              </svg>
+            </NavLink>
+          )}
+
+          {/* Administración (colapsado, solo admin) */}
           {userRole === "admin" && (
             <>
               <NavLink to="/selectores" className={getCollapsedButtonClasses} title="Registro de Selectores">
@@ -179,7 +233,8 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
               </NavLink>
             </>
           )}
-          {/* Nueva entrada para Registro de Auditoría (modo colapsado) */}
+
+          {/* Auditoría (colapsado) */}
           {(userRole === "admin" || userRole === "consultor" || userRole === "seguimiento") && (
             <NavLink to="/audit" className={getCollapsedButtonClasses} title="Registro de Auditoría">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -187,6 +242,8 @@ const Menu: React.FC<MenuProps> = ({ isMenuOpen, toggleMenu, handleLogout, userR
               </svg>
             </NavLink>
           )}
+
+          {/* Cerrar Sesión (colapsado) */}
           <div className="border-t border-gray-200 mt-4 pt-4 w-full flex justify-center">
             <button onClick={handleLogout} className="p-3 text-gray-600 hover:bg-gray-200 rounded-lg transition-colors" title="Cerrar Sesión">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

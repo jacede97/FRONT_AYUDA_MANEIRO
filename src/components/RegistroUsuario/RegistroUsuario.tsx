@@ -10,6 +10,7 @@ const ROLES = [
   { value: 'auditor', label: 'Auditor', color: 'red' },
   { value: 'supervisor', label: 'Supervisor', color: 'blue' },
   { value: 'admin', label: 'Administrador', color: 'purple' },
+  { value: 'puerto', label: 'pescador', color: 'purple' },
 ];
 
 const RegistroUsuario = () => {
